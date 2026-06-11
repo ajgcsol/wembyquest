@@ -409,6 +409,24 @@ function getClip(src){
   return a;
 }
 Object.values(VOICE_CLIPS).flat().forEach(c => getClip(c.src)); // preload at boot
+// iOS blocks programmatic play() on audio elements that never played inside a user
+// gesture (e.g. ult-triggered wails from the game loop). Unlock every clip on the
+// first touch: a muted play/pause inside the gesture grants it permanent permission.
+let clipsUnlocked = false;
+window.addEventListener('pointerdown', function unlockClips(){
+  if (clipsUnlocked) return;
+  clipsUnlocked = true;
+  Object.values(clipCache).forEach(a => {
+    try{
+      a.muted = true;
+      const p = a.play();
+      if (p && p.then) p.then(() => { a.pause(); a.currentTime = 0; a.muted = false; })
+                        .catch(() => { a.muted = false; });
+      else { a.pause(); a.currentTime = 0; a.muted = false; }
+    }catch(e){}
+  });
+  window.removeEventListener('pointerdown', unlockClips);
+});
 function playClip(clip, fallback){
   try{
     const a = getClip(clip.src);
@@ -1201,7 +1219,8 @@ function flop(o, dx, dy, power, denied=false){
   o.vy = (dy/d)*(7+Math.random()*5)*power - 3;
   o.vrot = (Math.random()<.5?-1:1)*(0.25+Math.random()*0.3);
   sfx.flop();
-  if (o.name==='TOWNS') flamboyantWail();
+  // KAT always wails for himself; anyone else has a 12% chance of earning the soundbite
+  if (o.name==='TOWNS' || Math.random() < 0.12) flamboyantWail();
   if (o.name.startsWith('McCAIN')) floatText(o.x, o.y-130, 'NOT THE FRESH SET!! 💅', '#E13A8E', 20);
   // points: every drawn flop = a bucket in transition
   const refNear = Math.hypot(ref.x-o.x, ref.y-o.y) < 190;
