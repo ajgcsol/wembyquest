@@ -1,0 +1,2555 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<!-- NOTE: no maximum-scale/user-scalable here — they trigger iOS Safari's rotation-zoom bug.
+     Double-tap zoom is blocked via CSS touch-action instead. -->
+<meta name="viewport" content="width=device-width, initial-scale=1.0, viewport-fit=cover">
+<title>WEMBYQUEST — The 2026 Playoff Ascension</title>
+<link rel="manifest" href="wq-manifest.json">
+<meta name="mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
+<meta name="apple-mobile-web-app-title" content="WembyQuest">
+<link rel="apple-touch-icon" href="wq-icon-180.png">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Bangers&family=Barlow+Condensed:ital,wght@0,400;0,600;0,800;1,400;1,700&display=swap" rel="stylesheet">
+<style>
+  :root{
+    /* Spurs Fiesta palette */
+    --fiesta-pink:#E13A8E;
+    --fiesta-teal:#00B2A9;
+    --fiesta-orange:#EF8633;
+    --spurs-silver:#C4CED4;
+    --ink:#0a0a0c;
+    --ink-2:#121218;
+    --ink-3:#1b1b24;
+    --paper:#f5f1e8;
+    --tear:#6fd6ff;
+    --x-bg:#000000;
+    --x-border:#2f3336;
+    --x-text:#e7e9ea;
+    --x-dim:#71767b;
+    --x-blue:#1d9bf0;
+  }
+  *{margin:0;padding:0;box-sizing:border-box}
+  html,body{height:100%}
+  html{-webkit-text-size-adjust:100%} /* stop iOS landscape text inflation */
+  body{
+    background:var(--ink);
+    color:var(--paper);
+    font-family:'Barlow Condensed',sans-serif;
+    overflow:hidden;
+    position:fixed;inset:0;width:100%;       /* pin the page: no Safari toolbar scroll-bounce */
+    overscroll-behavior:none;
+    touch-action:manipulation;               /* kills double-tap zoom without the buggy meta */
+    background-image:
+      radial-gradient(ellipse 80% 50% at 50% -10%, rgba(225,58,142,.18), transparent 60%),
+      radial-gradient(ellipse 60% 40% at 90% 110%, rgba(0,178,169,.15), transparent 60%),
+      repeating-linear-gradient(45deg, transparent 0 14px, rgba(255,255,255,.012) 14px 15px);
+  }
+  /* ============ layout ============ */
+  #app{
+    display:flex;flex-direction:column;
+    height:100vh;height:100dvh; /* dvh = the area Safari actually shows */
+    max-width:1500px;margin:0 auto;
+    padding:10px 14px;
+    padding-left:max(14px, env(safe-area-inset-left));
+    padding-right:max(14px, env(safe-area-inset-right));
+    padding-bottom:max(10px, env(safe-area-inset-bottom));
+  }
+  header{display:flex;align-items:baseline;gap:18px;padding:4px 6px 10px;flex-wrap:wrap}
+  h1{
+    font-family:'Bangers',cursive;font-size:clamp(28px,4vw,46px);letter-spacing:2px;
+    background:linear-gradient(100deg,var(--fiesta-pink) 0%,var(--fiesta-orange) 45%,var(--fiesta-teal) 100%);
+    -webkit-background-clip:text;background-clip:text;color:transparent;
+    filter:drop-shadow(3px 3px 0 #000) drop-shadow(4px 4px 0 rgba(225,58,142,.35));
+    transform:rotate(-1.2deg);
+  }
+  .tagline{font-style:italic;font-weight:700;color:var(--spurs-silver);font-size:15px;letter-spacing:.5px;opacity:.85}
+  .tagline b{color:var(--fiesta-orange)}
+  #hud{margin-left:auto;display:flex;gap:14px;align-items:center;font-weight:800;font-size:17px;letter-spacing:1px}
+  .hud-chip{background:var(--ink-3);border:2px solid #000;border-radius:6px;padding:3px 12px;box-shadow:3px 3px 0 #000;white-space:nowrap}
+  .hud-chip .v{color:var(--fiesta-teal);font-family:'Bangers',cursive;font-size:20px;letter-spacing:1.5px;margin-left:6px}
+  .hud-chip.tears .v{color:var(--tear)}
+  .hud-chip.combo .v{color:var(--fiesta-pink)}
+  #main{flex:1;display:flex;gap:14px;min-height:0}
+  #stage-wrap{
+    flex:1;position:relative;border:3px solid #000;border-radius:10px;overflow:hidden;
+    box-shadow:6px 6px 0 #000, 0 0 80px rgba(225,58,142,.12) inset;
+    background:#222;min-width:0;
+  }
+  canvas{display:block;width:100%;height:100%;cursor:crosshair;touch-action:none}
+  /* on-screen controls (mobile-friendly) */
+  #ctl{position:absolute;right:12px;bottom:46px;display:flex;flex-direction:column;gap:10px;z-index:7}
+  .ctl-btn{
+    width:58px;height:58px;border-radius:50%;border:3px solid #000;
+    background:rgba(18,18,26,0.88);color:#fff;cursor:pointer;
+    font:800 24px 'Barlow Condensed',sans-serif;
+    box-shadow:3px 3px 0 #000;touch-action:manipulation;
+    display:flex;align-items:center;justify-content:center;
+  }
+  .ctl-btn:active{transform:translate(2px,2px);box-shadow:1px 1px 0 #000}
+  .ctl-btn.aura{
+    font-family:'Bangers',cursive;font-size:14px;letter-spacing:1px;color:#000;
+    background:linear-gradient(135deg,var(--fiesta-teal),var(--fiesta-pink));
+    display:none;
+  }
+  .ctl-btn.aura.ready{display:flex;animation:pop .3s cubic-bezier(.2,1.8,.4,1)}
+  /* ============ X-style feed ============ */
+  #feed{
+    width:330px;flex-shrink:0;display:flex;flex-direction:column;border:3px solid #000;border-radius:10px;
+    background:var(--x-bg);box-shadow:6px 6px 0 #000;overflow:hidden;
+  }
+  #feed-head{
+    font-family:'Bangers',cursive;font-size:21px;letter-spacing:2px;padding:8px 14px 6px;
+    background:linear-gradient(90deg,var(--fiesta-pink),var(--fiesta-orange));color:#000;
+    display:flex;justify-content:space-between;align-items:center;
+  }
+  #feed-head small{font-family:'Barlow Condensed';font-weight:800;font-size:11px;letter-spacing:1px;background:#000;color:var(--paper);padding:2px 7px;border-radius:99px}
+  #tweets{flex:1;overflow-y:auto;display:flex;flex-direction:column;scrollbar-width:thin;background:var(--x-bg)}
+  .tweet{
+    font-family:-apple-system,'Segoe UI',Roboto,Helvetica,Arial,sans-serif;
+    border-bottom:1px solid var(--x-border);
+    padding:11px 13px 7px;display:flex;gap:9px;
+    animation:fadeIn .3s ease both;background:var(--x-bg);
+  }
+  .tweet.breaking{background:#16181c}
+  @keyframes fadeIn{from{opacity:0;transform:translateY(-6px)}to{opacity:1;transform:none}}
+  .t-av{
+    width:38px;height:38px;border-radius:50%;flex-shrink:0;
+    display:flex;align-items:center;justify-content:center;font-size:19px;
+  }
+  .t-main{flex:1;min-width:0}
+  .t-head{display:flex;align-items:center;gap:3px;font-size:13.5px;line-height:1.2;flex-wrap:nowrap;overflow:hidden}
+  .t-name{font-weight:700;color:var(--x-text);white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .t-badge{flex-shrink:0;width:15px;height:15px}
+  .t-handle{color:var(--x-dim);font-weight:400;white-space:nowrap;overflow:hidden;text-overflow:ellipsis}
+  .t-x{margin-left:auto;flex-shrink:0;width:13px;height:13px;fill:var(--x-dim)}
+  .t-body{font-size:13.5px;line-height:1.35;color:var(--x-text);margin-top:2px;word-wrap:break-word}
+  .t-body b{color:#fff}
+  .t-actions{
+    display:flex;justify-content:space-between;margin-top:7px;max-width:260px;
+    color:var(--x-dim);font-size:11.5px;
+  }
+  .t-act{display:flex;align-items:center;gap:4px}
+  .t-act svg{width:14px;height:14px;fill:var(--x-dim)}
+  .t-act.liked{color:#f91880}
+  .t-act.liked svg{fill:#f91880}
+  .t-act.rt{color:#00ba7c}
+  .t-act.rt svg{fill:#00ba7c}
+  #feed-foot{font-size:10.5px;text-align:center;color:#666;padding:6px 10px;border-top:1px solid var(--x-border);letter-spacing:.4px;font-family:'Barlow Condensed'}
+  /* real-article cards */
+  a.tweet.real{display:flex;text-decoration:none;border-left:3px solid var(--fiesta-teal);background:#0a0f0e;cursor:pointer}
+  a.tweet.real:hover{background:#101a18}
+  .real-badge{display:inline-block;font-size:10px;font-weight:800;letter-spacing:1px;background:var(--fiesta-teal);color:#000;border-radius:4px;padding:1px 6px;margin-bottom:4px}
+  .real-src{color:var(--x-dim);font-size:11.5px;margin-top:5px}
+  /* ============ overlay screens ============ */
+  #overlay{
+    position:absolute;inset:0;display:flex;align-items:center;justify-content:center;
+    background:rgba(6,6,10,.86);backdrop-filter:blur(3px);z-index:10;padding:20px;
+  }
+  #overlay.hidden{display:none}
+  .card{
+    max-width:640px;width:100%;background:var(--ink-2);border:3px solid #000;border-radius:14px;
+    box-shadow:8px 8px 0 #000, 0 0 60px rgba(0,178,169,.25);
+    padding:26px 32px;text-align:center;animation:slamIn .4s cubic-bezier(.2,1.6,.4,1) both;
+    max-height:100%;overflow-y:auto;
+  }
+  @keyframes slamIn{from{transform:scale(.6) rotate(-4deg);opacity:0}to{transform:scale(1) rotate(0);opacity:1}}
+  .card h2{
+    font-family:'Bangers',cursive;font-size:clamp(32px,5vw,54px);letter-spacing:3px;line-height:1;
+    color:var(--fiesta-orange);text-shadow:3px 3px 0 #000,5px 5px 0 var(--fiesta-pink);transform:rotate(-1deg);margin-bottom:6px;
+  }
+  .card h2.loss{color:#ff5470;text-shadow:3px 3px 0 #000,5px 5px 0 #401020}
+  .card h3{font-family:'Bangers',cursive;font-size:24px;letter-spacing:2px;color:var(--fiesta-teal);margin:10px 0 4px}
+  .card p{font-size:17px;font-weight:600;line-height:1.45;color:#ddd8cc;margin:8px 0}
+  .card p.small{font-size:14px;color:#999;font-weight:400}
+  .card .vs{font-family:'Bangers',cursive;font-size:30px;letter-spacing:2px;margin:10px 0;display:flex;align-items:center;justify-content:center;gap:16px}
+  .card .vs .team{padding:4px 14px;border:2px solid #000;border-radius:8px;box-shadow:3px 3px 0 #000}
+  .quote{
+    font-style:italic;background:#101016;border-left:4px solid var(--fiesta-pink);
+    padding:10px 14px;margin:14px 0;text-align:left;font-size:15.5px;color:#cfcabd;border-radius:0 8px 8px 0;
+  }
+  .quote b{color:var(--fiesta-orange);font-style:normal}
+  button.go{
+    font-family:'Bangers',cursive;font-size:25px;letter-spacing:3px;color:#000;
+    background:linear-gradient(100deg,var(--fiesta-teal),var(--fiesta-orange));
+    border:3px solid #000;border-radius:10px;padding:9px 32px;margin:14px 6px 0;cursor:pointer;
+    box-shadow:5px 5px 0 #000;transition:transform .08s, box-shadow .08s;
+  }
+  button.go.danger{background:linear-gradient(100deg,#ff5470,var(--fiesta-pink))}
+  button.go:hover{transform:translate(-2px,-2px) rotate(-1deg);box-shadow:7px 7px 0 #000}
+  button.go:active{transform:translate(3px,3px);box-shadow:1px 1px 0 #000}
+  .controls{display:flex;justify-content:center;gap:10px;flex-wrap:wrap;margin-top:14px}
+  .key{background:#000;border:2px solid #444;border-bottom-width:4px;border-radius:6px;padding:3px 10px;font-weight:800;font-size:14px;color:var(--spurs-silver)}
+  .key b{color:var(--fiesta-teal)}
+  .rules{
+    display:grid;grid-template-columns:1fr 1fr;gap:8px;margin-top:12px;text-align:left;
+  }
+  .rule{background:#101016;border:2px solid #000;border-radius:8px;padding:8px 10px;font-size:13.5px;font-weight:600;color:#cfcabd;line-height:1.3}
+  .rule b{color:var(--fiesta-teal);display:block;font-size:14px}
+  .rule.bad b{color:#ff5470}
+  /* series pips */
+  #series{position:absolute;top:10px;right:12px;display:flex;gap:5px;z-index:5}
+  .pip{width:22px;height:22px;border-radius:50%;border:2px solid #000;background:#2c2c35;display:flex;align-items:center;justify-content:center;font-family:'Bangers';font-size:12px;color:#000;box-shadow:2px 2px 0 #000}
+  .pip.won{background:var(--fiesta-teal);animation:pop .3s cubic-bezier(.2,1.8,.4,1)}
+  .pip.lost{background:#ff5470;animation:pop .3s cubic-bezier(.2,1.8,.4,1)}
+  @keyframes pop{from{transform:scale(.3)}to{transform:scale(1)}}
+  /* big announce text */
+  #announce{
+    position:absolute;top:36%;left:0;right:0;text-align:center;z-index:6;pointer-events:none;
+    font-family:'Bangers',cursive;font-size:56px;letter-spacing:4px;color:var(--fiesta-orange);
+    text-shadow:4px 4px 0 #000,6px 6px 0 var(--fiesta-pink);opacity:0;transform:scale(.5) rotate(-3deg);
+  }
+  #announce.bad{color:#ff5470;text-shadow:4px 4px 0 #000,6px 6px 0 #401020}
+  #announce.show{animation:announce 1.7s ease both}
+  @keyframes announce{
+    0%{opacity:0;transform:scale(.4) rotate(-6deg)}
+    14%{opacity:1;transform:scale(1.15) rotate(1deg)}
+    22%{transform:scale(1) rotate(-1deg)}
+    78%{opacity:1;transform:scale(1) rotate(-1deg)}
+    100%{opacity:0;transform:scale(1.4) rotate(2deg)}
+  }
+  footer{padding:7px 6px 2px;font-size:11px;color:#5d5d6a;text-align:center;letter-spacing:.4px}
+  @media (max-width:760px){ #feed{display:none} }
+  /* phones: demand landscape — the tears need the width */
+  #rotate{
+    display:none;position:fixed;inset:0;z-index:99;background:rgba(6,6,10,0.97);
+    flex-direction:column;align-items:center;justify-content:center;text-align:center;gap:12px;
+  }
+  #rotate .phone{font-size:60px;animation:spinphone 1.8s ease infinite}
+  @keyframes spinphone{0%,18%{transform:rotate(0)}55%,100%{transform:rotate(90deg)}}
+  #rotate h2{font-family:'Bangers',cursive;font-size:30px;letter-spacing:2px;color:var(--fiesta-orange)}
+  #rotate p{font-size:15px;color:#9a9aa8;font-weight:600;max-width:260px}
+  @media (orientation: portrait) and (pointer: coarse){ #rotate{display:flex} }
+  /* compact landscape-phone layout */
+  @media (max-height: 540px){
+    #feed{display:none}
+    footer{display:none}
+    .tagline{display:none}
+    #app{padding:4px 8px}
+    header{padding:0 4px 4px;gap:10px}
+    h1{font-size:22px}
+    #hud{gap:7px;font-size:12px}
+    .hud-chip{padding:1px 8px;border-width:1.5px;box-shadow:2px 2px 0 #000}
+    .hud-chip .v{font-size:14px;margin-left:4px}
+    .ctl-btn{width:50px;height:50px}
+    #ctl{bottom:34px}
+    .card{padding:14px 18px;max-height:96%}
+    .card h2{font-size:30px}
+    .card p{font-size:14px}
+    button.go{font-size:19px;padding:6px 20px;margin-top:8px}
+    .rules{grid-template-columns:1fr 1fr;gap:5px}
+    .rule{padding:5px 8px;font-size:11.5px}
+  }
+</style>
+</head>
+<body>
+<div id="app">
+  <header>
+    <h1>WEMBYQUEST</h1>
+    <div class="tagline">75% man. 25% Eiffel Tower. <b>100% unbothered.</b></div>
+    <div id="hud">
+      <div class="hud-chip tears">TEARS <span class="v" id="hud-tears">0</span></div>
+      <div class="hud-chip">ABSORBED <span class="v" id="hud-absorbed">0</span></div>
+      <div class="hud-chip combo">COMBO <span class="v" id="hud-combo">×1</span></div>
+      <div class="hud-chip">AURA <span class="v" id="hud-ult">0%</span></div>
+    </div>
+  </header>
+  <div id="main">
+    <div id="stage-wrap">
+      <canvas id="game"></canvas>
+      <div id="series"></div>
+      <div id="announce"></div>
+      <div id="ctl">
+        <button id="btn-aura" class="ctl-btn aura" title="Alien Aura (E)">AURA</button>
+        <button id="btn-fs" class="ctl-btn" title="Fullscreen" style="font-size:19px">⛶</button>
+        <button id="btn-pause" class="ctl-btn" title="Pause (P)">⏸</button>
+      </div>
+      <div id="overlay"><div class="card" id="card"></div></div>
+    </div>
+    <aside id="feed">
+      <div id="feed-head">CRYBABY FEED <small>LIVE MELTDOWNS</small></div>
+      <div id="tweets"></div>
+      <div id="feed-foot">All posts are parody. Any resemblance to real meltdowns is purely statistical.</div>
+    </aside>
+  </div>
+  <footer>WembyQuest is a fan-made parody game. Not affiliated with the NBA, the Spurs, X, or any actual crybabies. The 2026 playoff bracket, however, is real.</footer>
+</div>
+<div id="rotate">
+  <div class="phone">📱</div>
+  <h2>ROTATE YOUR PHONE</h2>
+  <p>WembyQuest plays in landscape. Drag to glide the big man, tap to swat.</p>
+</div>
+
+<script>
+"use strict";
+/* =====================================================================
+   WEMBYQUEST v2 — The 2026 Playoff Ascension
+   Now an actual basketball game you can WIN or LOSE.
+   - Scorers drive to your hoop. Stop them or they get buckets.
+   - Flop artists dive near the ref to draw fouls ON YOU. 6 fouls = out.
+   - Best of 7 per round. Lose 4 and the crybabies advance.
+   ===================================================================== */
+
+// ---------- DOM ----------
+const canvas = document.getElementById('game');
+const ctx = canvas.getContext('2d');
+const overlay = document.getElementById('overlay');
+const card = document.getElementById('card');
+const tweetsEl = document.getElementById('tweets');
+const seriesEl = document.getElementById('series');
+const announceEl = document.getElementById('announce');
+const hud = {
+  tears: document.getElementById('hud-tears'),
+  absorbed: document.getElementById('hud-absorbed'),
+  combo: document.getElementById('hud-combo'),
+  ult: document.getElementById('hud-ult'),
+};
+
+let W = 960, H = 540, DPR = 1;
+function resize(){
+  const r = canvas.parentElement.getBoundingClientRect();
+  // canvas logical size ALWAYS matches its CSS box — mismatched floors stretch the world
+  W = Math.max(280, r.width);
+  H = Math.max(200, r.height);
+  DPR = Math.min(2, window.devicePixelRatio || 1); // retina-crisp without melting phones
+  canvas.width = Math.round(W * DPR);
+  canvas.height = Math.round(H * DPR);
+}
+window.addEventListener('resize', resize);
+window.addEventListener('orientationchange', () => setTimeout(resize, 250));
+
+// ---------- AUDIO ----------
+let AC = null, muted = false;
+function ac(){ if(!AC) AC = new (window.AudioContext||window.webkitAudioContext)(); return AC; }
+function tone(freq, dur, type='square', vol=0.08, slideTo=null, when=0){
+  if (muted) return;
+  try{
+    const a = ac(), o = a.createOscillator(), g = a.createGain();
+    const t0 = a.currentTime + when;
+    o.type = type; o.frequency.setValueAtTime(freq, t0);
+    if (slideTo) o.frequency.exponentialRampToValueAtTime(slideTo, t0+dur);
+    g.gain.setValueAtTime(vol, t0);
+    g.gain.exponentialRampToValueAtTime(0.0001, t0+dur);
+    o.connect(g); g.connect(a.destination);
+    o.start(t0); o.stop(t0+dur+0.02);
+  }catch(e){}
+}
+const sfx = {
+  poke(){ tone(880,0.07,'triangle',0.1); tone(1320,0.09,'triangle',0.07,null,0.04); },
+  flop(){ tone(520,0.25,'sawtooth',0.07,140); },
+  whistle(){ tone(2350,0.12,'square',0.05); tone(2350,0.3,'square',0.05,2280,0.14); },
+  absorb(){ tone(160,0.1,'sine',0.12,90); },
+  cry(){ tone(740,0.5,'sine',0.05,470); },
+  swishThem(){ tone(300,0.18,'sine',0.09,180); tone(150,0.3,'sine',0.07,90,0.1); },
+  bucketUs(){ tone(660,0.1,'triangle',0.09); tone(990,0.14,'triangle',0.08,null,0.08); },
+  buzzer(){ tone(110,0.9,'square',0.12,100); tone(112,0.9,'square',0.08,100); },
+  win(){ [523,659,784,1047].forEach((f,i)=>tone(f,0.22,'triangle',0.09,null,i*0.13)); },
+  lose(){ [392,370,349,330,262].forEach((f,i)=>tone(f,0.3,'sawtooth',0.06,null,i*0.26)); },
+  ult(){ tone(120,0.7,'sawtooth',0.1,400); tone(60,0.7,'sine',0.13,200); },
+  foul(){ tone(2350,0.1,'square',0.06); tone(2350,0.1,'square',0.06,null,0.15); tone(2350,0.4,'square',0.06,2200,0.3); },
+};
+window.addEventListener('keydown', e=>{ if(e.key==='m'||e.key==='M'){ muted=!muted; toast(muted?'MUTED':'SOUND ON'); } });
+// KAT-grade zest (Finals only). Canon per the tape: "OH MY GAWDD" / "after all that".
+// Stretched spellings force the TTS to drawl; slower rate lets the incredulity breathe.
+// index-aligned with VOICE_CLIPS.kat — these only speak if the real clip can't play
+const WAIL_LINES = [
+  {t:'OH my GAWWWWD, bro.', pitch:1.7,  rate:0.95},
+  {t:'nah, for sure.',      pitch:1.55, rate:0.9},
+];
+// prefer a breathy/soft system voice over the default robot.
+// Voice OBJECTS go stale across reloads/cancels in Chrome — store the NAME, resolve fresh each speak.
+let zestyVoiceName = null;
+function pickZestyVoice(){
+  try{
+    const voices = speechSynthesis.getVoices();
+    const prefs = ['Samantha','Victoria','Karen','Tessa','Moira','Google US English','Microsoft Aria'];
+    for (const p of prefs){
+      const v = voices.find(v => v.name.includes(p));
+      if (v){ zestyVoiceName = v.name; return; }
+    }
+    const en = voices.find(v => v.lang && v.lang.startsWith('en'));
+    zestyVoiceName = en ? en.name : null;
+  }catch(e){}
+}
+try{
+  speechSynthesis.addEventListener && speechSynthesis.addEventListener('voiceschanged', pickZestyVoice);
+  pickZestyVoice();
+}catch(e){}
+// Recorded voice clips (baked with macOS voices: Thomas for French, Samantha for zest).
+// Real audio files play everywhere — including webviews where speechSynthesis is silently dead.
+// playbackRate > 1 with preservesPitch off = higher + faster = zestier.
+// ACTUAL Karl-Anthony Towns audio — only the certified hits made the final cut.
+const VOICE_CLIPS = {
+  oui: [{src:'wq-audio/oui.m4a', rate:1.05}],
+  kat: [
+    {src:'wq-audio/kat1.m4a', rate:1.0},          // "Oh my god, bro."
+    {src:'wq-audio/kat-nahforsure.mp3', rate:1.0},// "Nah, for sure."
+  ],
+};
+const clipCache = {};
+function getClip(src){
+  let a = clipCache[src];
+  if (!a){
+    a = new Audio(src);
+    a.preload = 'auto';
+    clipCache[src] = a;
+  }
+  return a;
+}
+Object.values(VOICE_CLIPS).flat().forEach(c => getClip(c.src)); // preload at boot
+function playClip(clip, fallback){
+  try{
+    const a = getClip(clip.src);
+    a.pause();
+    a.currentTime = 0;
+    a.playbackRate = clip.rate || 1;
+    try{ a.preservesPitch = false; a.mozPreservesPitch = false; a.webkitPreservesPitch = false; }catch(e){}
+    a.volume = 1;
+    const p = a.play();
+    if (p && p.catch) p.catch(()=>{ if (fallback) fallback(); });
+  }catch(e){ if (fallback) fallback(); }
+}
+// Chrome gotchas: (1) speak() right after cancel() gets dropped — wait a beat;
+// (2) un-referenced utterances get garbage-collected mid-sentence — keep a global ref;
+// (3) the engine can wedge in a paused state — always resume() first.
+let speechRef = null;
+function speakLine(text, opts={}){
+  if (muted) return;
+  try{
+    const synth = speechSynthesis;
+    const u = new SpeechSynthesisUtterance(text);
+    if (opts.voiceName){
+      const v = synth.getVoices().find(x => x.name === opts.voiceName);
+      if (v) u.voice = v;
+    } else if (opts.lang){
+      const v = synth.getVoices().find(x => x.lang && x.lang.toLowerCase().startsWith(opts.lang));
+      if (v) u.voice = v; else u.lang = opts.lang;
+    }
+    u.pitch = opts.pitch ?? 1;
+    u.rate = opts.rate ?? 1;
+    u.volume = 1;
+    speechRef = u;
+    const go = () => { try{ synth.resume(); synth.speak(u); }catch(e){} };
+    if (synth.speaking || synth.pending){ synth.cancel(); setTimeout(go, 80); }
+    else go();
+  }catch(e){}
+}
+function flamboyantWail(){
+  if (muted) return;
+  tone(880,0.35,'sine',0.04,500); // just a hint of swoon under the voice
+  const i = Math.floor(Math.random()*WAIL_LINES.length);
+  const line = WAIL_LINES[i];
+  playClip(VOICE_CLIPS.kat[i], () => {
+    if (!zestyVoiceName) pickZestyVoice();
+    speakLine(line.t, {voiceName: zestyVoiceName, pitch: line.pitch + Math.random()*0.15, rate: line.rate});
+  });
+}
+
+// ---------- SKIN/HAIR VARIETY ----------
+const SKINS = ['#8d5524','#6b4226','#c68642','#a0673f','#e0ac69','#5a3a22'];
+const HAIRSTYLES = ['buzz','curls','bun','band','bald','flat'];
+const HAIRCOLORS = ['#15100c','#241a12','#0c0c0c','#33241a'];
+
+// ---------- THE REAL 2026 PLAYOFF JOURNEY ----------
+const LEVELS = [
+  {
+    name:'ROUND 1', opp:'PORTLAND TRAIL BLAZERS', short:'BLAZERS', abbr:'POR',
+    jersey:'#cf1f3c', trim:'#111111', shorts:'#111111', courtTint:'rgba(207,31,60,0.05)',
+    scorerEvery: 3.9, enforcerEvery: 5.8, flopperEvery: 16, oppSpeed: 1.08, gameSecs: 40, scorerCap: 3, flopperCap: 1,
+    homeGames: [1,2,5,7], city: 'PORTLAND',
+    realResult:'Real life: Spurs sent Rip City home in round one.',
+    intro:'The pilgrimage begins in the rain. Portland tries "guarding" you with two centers stacked in a trench coat.',
+    handles:[
+      ['Rip City Randy','@RipCityRandy','🌧️'],
+      ['PDX Hoops Dad','@PDXHoopsDad','☕'],
+      ['Blazer Mafia 503','@BlazerMafia503','🪓'],
+      ['Moda Center Mood','@ModaMeltdown','😤'],
+    ],
+    tweets:[
+      "Wemby BREATHED near our center and now he's listed as day-to-day (hurt feelings). RIGGED.",
+      "He didn't even touch him. He POINTED. My guy did a backflip and started crying. Suspend the finger.",
+      "Refs swallowing the whistle while a 7'5\" man gently exists in the paint. Unwatchable.",
+      "Our whole starting five is in the locker room doing breathing exercises. It's the first quarter.",
+      "I've watched the replay 47 times. The contact was a light breeze. My guy is in concussion protocol.",
+      "Petition to make eye contact with Wembanyama a flagrant 1. Sign below. 🧵",
+    ],
+  },
+  {
+    name:'WEST SEMIS', opp:'MINNESOTA TIMBERWOLVES', short:'WOLVES', abbr:'MIN',
+    jersey:'#236192', trim:'#78be20', shorts:'#0c233f', courtTint:'rgba(35,97,146,0.06)',
+    scorerEvery: 3.1, enforcerEvery: 5.4, flopperEvery: 11, oppSpeed: 1.32, gameSecs: 43, scorerCap: 4, flopperCap: 2,
+    homeGames: [1,2,5,7], city: 'MINNEAPOLIS',
+    realResult:'Real life: Spurs won the series 4–2. Game 2 was a 38-point demolition.',
+    intro:'Minnesota brings size, snarl, and a fanbase that files an official complaint every time you blink in their direction.',
+    handles:[
+      ['Wolves Back Timmy','@WolvesBackTimmy','🐺'],
+      ['SOTA Cold Takes','@MNSotaCold','🥶'],
+      ['Howl At Midnight','@HowlMidnightMN','🌕'],
+      ['Lake Wobegon Hoops','@10kLakesOfTears','💧'],
+    ],
+    tweets:[
+      "Wemby high-fived our big man after the whistle and he flew into row 12. EXPLAIN THAT, NBA.",
+      "That's a hostile act. He said 'good game' in FRENCH. Psychological warfare. Fine him.",
+      "133-95 and the refs STILL let him gently pat my guy on the shoulder?? Where is the league office.",
+      "My center absorbed 0.002 newtons of force and shattered emotionally. Thoughts and prayers.",
+      "He blocked the shot AND the will to live. There has to be a rule.",
+      "Up here we call that a misdemeanor. In Texas they call it 'help defense' apparently.",
+    ],
+  },
+  {
+    name:'WEST FINALS', opp:'OKLAHOMA CITY THUNDER', short:'THUNDER', abbr:'OKC',
+    jersey:'#007ac1', trim:'#ef8633', shorts:'#002d62', courtTint:'rgba(0,122,193,0.06)',
+    scorerEvery: 2.4, enforcerEvery: 4.6, flopperEvery: 8, oppSpeed: 1.55, gameSecs: 46, scorerCap: 5, flopperCap: 2,
+    homeGames: [3,4,6], city: 'OKLAHOMA CITY',
+    realResult:'Real life: Spurs beat the defending champs in 7. Wemby was unanimous WCF MVP — then cried, and got criticized FOR CRYING.',
+    intro:'The defending champs. Seven games of war. They draw fouls professionally — beware their flop artists. The whistle bends toward them.',
+    handles:[
+      ['Thunder Up Trent','@ThunderUpTrent','⛈️'],
+      ['Loud City Larry','@LoudCityLarry','📢'],
+      ['OKC Drama Alert','@OKCDramaAlert','🚨'],
+      ['Free Throw Merchant','@WhistleWatcherOK','🎟️'],
+    ],
+    tweets:[
+      "Oh NOW the refs don't call touch fouls?? We built an entire offense on those!!",
+      "Wemby brushed past our MVP's shoulder and the man dissolved like a sugar cube. Investigate.",
+      "He absorbed a screen, a shove, and a flying elbow and just... kept walking? That's not legal. That's not HUMAN.",
+      "Our guy threw himself backward from a finger guns gesture and STILL no call. The system is broken.",
+      "Game 7 at home and this alien is out here collecting our tears in a little jar. Disrespectful.",
+      "Unanimous WCF MVP?? He made my team cry, my city cry, and then HE cried. Leave some tears for the rest of us.",
+    ],
+  },
+  {
+    name:'NBA FINALS', opp:'NEW YORK KNICKS', short:'KNICKS', abbr:'NYK',
+    jersey:'#f58426', trim:'#006bb6', shorts:'#006bb6', courtTint:'rgba(245,132,38,0.06)',
+    scorerEvery: 1.8, enforcerEvery: 3.9, flopperEvery: 6.5, oppSpeed: 1.85, gameSecs: 50, scorerCap: 5, flopperCap: 2,
+    homeGames: [1,2,5,7], city: 'NEW YORK CITY',
+    realResult:'Real life: this series is happening RIGHT NOW. Knicks lead 2–1. Game 4 tips off tonight — June 10, 2026 — at the Garden.',
+    intro:"Madison Square Garden. The actual, currently-in-progress 2026 NBA Finals. New York has been waiting since 1973 and they will absolutely cry about everything. Their flop artists trained at Juilliard.",
+    realTalk:`<div class="quote"><b>STEPHON MARBURY</b> — actual Knicks legend, actual quote after the real Game 3 shove:<br>
+      "I'm going to pop him in his ribcage so hard with my elbow that he's going to fall and drop to the ground."
+      <a href="https://www.si.com/nba/former-knick-sends-warning-wemby-dirty-jalen-brunson-shove-nba-finals-game-three" target="_blank" rel="noopener" style="color:var(--fiesta-teal)">[this really happened]</a><br>
+      <span style="font-size:13px;color:#999">He then clarified the viral "knife in his neck" line by explaining, and we quote: "Elbow=Knife." The enforcers in this level are dedicated to his vision.</span></div>`,
+    handles:[
+      ['KnicksTape 4 Eva','@KnicksTape4Eva','🗽'],
+      ['MSG Meltdown Mike','@MSGMeltdownMike','🎭'],
+      ['7 Train Therapy','@7TrainTherapy','🚇'],
+      ['Bing Bong Brian','@BingBongBrian','🔔'],
+    ],
+    tweets:[
+      "He set a LEGAL SCREEN on our point guard and the man crumbled like a $1 slice. FLAGRANT.",
+      "53 years we waited and a French skyscraper is out here gently shrugging at our entire roster.",
+      "My guy initiated contact, bounced off, fell down, AND got T'd up for crying?? THE FIX IS IN.",
+      "And the media said WEMBY flops?? Our whole bench just hit the deck because he waved at them.",
+      "He absorbed three box-outs and a hip check and his heart rate never left 60. Test him for being an alien.",
+      "BING BONG is a cry for help now. It was always a cry for help. But now it's louder.",
+      "The Garden is so loud and yet all I can hear is my own weeping. Anyway, refs rigged it.",
+    ],
+  },
+];
+
+// Generic event tweet pools
+const TW_SMUG = [
+  "BUCKET. Right in the alien's face. The empire crumbles TODAY.",
+  "Our offense is COOKING. Wemby can't guard everyone. Probably. Hopefully. Please.",
+  "See?? When the refs let us PLAY we score!! (the refs are still rigged though)",
+  "That's a professional bucket. Frame it. Put it in the Louvre, since he loves France so much.",
+];
+const TW_FOUL = [
+  "FINALLY THE REFS SEE IT!! Foul on Wembanyama!! My guy flew 9 feet for that call and EARNED IT.",
+  "A WHISTLE! ON HIM! Justice exists!! My guy's acting coach is crying tears of pride.",
+  "Foul on Wemby!!! I've printed this box score and framed it already.",
+  "He's in FOUL TROUBLE baby!!! The Academy would like to congratulate our nominee.",
+];
+const TW_DENIED = [
+  "Our designated foul-drawer got POKED mid-performance. You can't poke an artist. SUSPEND HIM.",
+  "He interrupted the flop WINDUP. That's like booing during the opera. Classless.",
+  "My guy practiced that dive for WEEKS and Wemby just... tipped him over early?? Cruel.",
+];
+const TW_ABSORB = [
+  "My guy just ran into Wemby at FULL SPEED and bounced off like a shopping cart hitting a cathedral. No call. On WEMBY I mean. Somehow.",
+  "We have now run four grown men directly into this person and he has not moved. Physics owes us an apology.",
+  "Scouting report said 'be physical with him.' The scouting report did not survive contact either.",
+];
+const TW_SUPPORT = [
+  ["Fiesta Forever","@SpursFiestaForever","🪩","Y'all really crying because a nice young man is 7'5\" and polite. Stay mad. GO SPURS GO."],
+  ["Alamo Aficionado","@PuroSpursPedro","🌮","Counting the tears in this feed instead of sheep tonight. 😴 Beautiful stuff."],
+];
+const INSIDER = ['Shams Charcuterie','@ShamsBoardNBA','🧀'];
+
+// ---------- POWER-UPS (collect on the court; flashes the real teammate's face) ----------
+const POWERUPS = [
+  {key:'dagger',  label:'CASTLE DAGGER',        sub:'+3 — cold-blooded',          emoji:'🗡️', faceId:1642264, color:'#00B2A9'},
+  {key:'body',    label:'HARPER CAUGHT A BODY', sub:'everyone nearby hits the deck', emoji:'💀', faceId:1642844, color:'#E13A8E'},
+  {key:'vanilla', label:'FRENCH VANILLA',       sub:'Wemby + Kornet share the floor. everything freezes.', emoji:'🍦', faceId:1641705, faceId2:1628436, color:'#EF8633'},
+  {key:'swipa',   label:'SWIPA THE FOX',        sub:"De'Aaron velocity — fast paws, longer reach", emoji:'🦊', faceId:1628368, color:'#6fd6ff'},
+  {key:'nuns',    label:'THE SALESIAN SISTERS', sub:'a courtside blessing — one foul forgiven, brief whistle immunity', emoji:'🙏', color:'#ffd23f'},
+  {key:'melons',  label:'BIG MELONS',           sub:'the defense is suddenly very distracted', emoji:'🍈', color:'#E13A8E'},
+  {key:'churro',  label:'HALFTIME CHURRO',      sub:'cinnamon sugar speed boost', emoji:'🥖', color:'#EF8633'},
+];
+// hazards — they sit on the court looking collectible. they are not.
+const HAZARDS = [
+  {key:'elbow',   label:'LOOSE ELBOW — DO NOT TOUCH', sub:'flagrant 2. Naz Reid remembers.', emoji:'💪', color:'#ff5470', faceId:1629675, hazard:true},
+  {key:'perk',    label:'PERKINS TAKE',               sub:'confidence and tears devalued',   emoji:'📢', color:'#ff5470', hazard:true},
+  {key:'whistle', label:'MYSTERY WHISTLE',            sub:'someone heard contact',           emoji:'😗', color:'#ff5470', hazard:true},
+  {key:'knife',   label:'MARBURY SPECIAL (ELBOW=KNIFE)', sub:'rib cage check incoming',      emoji:'🔪', color:'#ff5470', hazard:true},
+];
+let powerups = []; // {x,y,def,life}
+let recentPowerKeys = []; // anti-repeat: no déjà vu drops
+function spawnPowerup(){
+  if (powerups.length >= 3) return;
+  let def;
+  for (let tries=0; tries<5; tries++){
+    def = Math.random() < 0.3 ? rnd(HAZARDS) : rnd(POWERUPS);
+    if (!recentPowerKeys.includes(def.key)) break;
+  }
+  recentPowerKeys.push(def.key);
+  if (recentPowerKeys.length > 2) recentPowerKeys.shift();
+  getFace(def.faceId);
+  if (def.faceId2) getFace(def.faceId2);
+  powerups.push({
+    x: 90 + Math.random()*(W-180),
+    y: 180 + Math.random()*(H-240),
+    def, life: 11*60,
+  });
+}
+function applyPowerup(p){
+  const d = p.def;
+  G.flash = {def:d, timer:85};
+  sfx.win();
+  if (d.key==='dagger'){
+    G.scoreUs += 3;
+    sfx.bucketUs();
+    floatText(p.x, p.y-40, 'DAGGER. +3', '#00B2A9', 26);
+    postTweet({body:"A bench player just hit a DAGGER while our whole team was busy crying. This organization."});
+  } else if (d.key==='body'){
+    let n=0;
+    for (const o of opponents){
+      if (['drive','charge','bounce','lurk','windup','layup','grapple'].includes(o.state)){
+        const dx=o.x-wemby.x||0.01, dy=o.y-wemby.y||0.01;
+        setTimeout(()=>{ if(G.scene==='play') flop(o,dx,dy,1.5); }, n*70);
+        n++;
+      }
+    }
+    floatText(p.x, p.y-40, 'BODIES. CAUGHT.', '#E13A8E', 26);
+  } else if (d.key==='vanilla'){
+    G.freeze = 4.5*60;
+    G.ult = Math.min(100, G.ult+30);
+    ouiOui();
+    floatText(p.x, p.y-40, 'FROZEN SOLID', '#6fd6ff', 26);
+    postTweet({body:"Our offense just froze mid-possession. Witnesses report a faint smell of vanilla and superiority."});
+  } else if (d.key==='nuns'){
+    G.fouls = Math.max(0, G.fouls-1);
+    G.grace = 10*60;
+    floatText(p.x, p.y-40, 'ABSOLVED. (-1 FOUL)', '#ffd23f', 24);
+    toast('GO SPURS GO & GOD BLESS');
+    postTweet({body:"The courtside nuns just blessed him and the refs put their whistles AWAY. You cannot officiate against the Vatican."});
+  } else if (d.key==='melons'){
+    G.distract = 4*60;
+    floatText(p.x, p.y-40, 'DEFENSE DISTRACTED', '#E13A8E', 24);
+    postTweet({body:"Our entire defense just stopped moving. No further comment. Respectfully."});
+  } else if (d.key==='churro'){
+    G.churro = 5*60;
+    G.combo = Math.min(8, G.combo+2);
+    floatText(p.x, p.y-40, 'CINNAMON VELOCITY', '#EF8633', 24);
+  } else if (d.key==='swipa'){
+    G.swipa = 6*60;
+    floatText(p.x, p.y-40, 'SWIPA MODE 🦊', '#6fd6ff', 26);
+    postTweet({body:"Wemby just started moving like De'Aaron Fox and swatting from a ZIP code away. Two fast tall people is illegal. Has to be."});
+  }
+  // ---- hazards (you shouldn't have stepped there) ----
+  else if (d.key==='elbow'){
+    G.fouls = Math.min(6, G.fouls+2);
+    G.scoreThem += 2;
+    ref.point = 80; sfx.foul();
+    G.shake = Math.max(G.shake, 12);
+    floatText(p.x, p.y-40, 'FLAGRANT 2 + $2,000 FINE', '#ff5470', 24);
+    postTweet({body:"HE DID THE NAZ REID ELBOW AGAIN. Eject him to the moon. (He has been fined $2,000, which he found in his car.)"});
+    if (G.fouls>=6){ endGame('foulout'); return; }
+  } else if (d.key==='perk'){
+    G.combo = 1;
+    G.tears = Math.max(0, G.tears-15);
+    floatText(p.x, p.y-40, 'TEARS DEVALUED -15', '#ff5470', 22);
+    postTweet({body:"Kendrick Perkinsaur just said Wemby is 'a system player in a tears-inflated era' and honestly the market reacted."});
+  } else if (d.key==='whistle'){
+    phantomFoul();
+  } else if (d.key==='knife'){
+    G.wembyStun = 80;
+    G.absorbed++;
+    G.shake = Math.max(G.shake, 14);
+    floatText(p.x, p.y-40, 'RIB CAGE CHECK (absorbed, but rude)', '#ff5470', 20);
+    postTweet({body:"Somebody just elbow-=-knifed Wemby in the ribs. He paused. He looked down. He filed it under 'cute.'"});
+  }
+}
+function ouiOui(){
+  if (muted) return;
+  tone(720,0.12,'triangle',0.08); tone(880,0.14,'triangle',0.08,null,0.12);
+  playClip(VOICE_CLIPS.oui[0], () => speakLine('Oui oui!', {lang:'fr', pitch:1.5, rate:1.05}));
+}
+
+// ---------- REAL COVERAGE (actual articles about this actual playoff run) ----------
+const REAL_POSTS = [
+  {lvl:0, t:"Young San Antonio team earns its playoff spurs with first-round series victory", src:'NBA.com', u:'https://www.nba.com/news/trail-blazers-spurs-2026-playoffs-first-round-game-5-takeaways'},
+  {lvl:1, t:"Victor Wembanyama EJECTED from Game 4 — career-first Flagrant 2 for elbowing Naz Reid", src:'ESPN', u:'https://www.espn.com/nba/story/_/id/48736940/spurs-victor-wembanyama-ejected-game-4-career-first-elbowing-timberwolves-naz-reid'},
+  {lvl:1, t:"Wembanyama avoids suspension for Naz Reid elbow, will play Game 5", src:'ESPN', u:'https://www.espn.com/nba/story/_/id/48742211/no-discipline-wembanyama-reid-elbow-play-game-5'},
+  {lvl:2, t:"Wembanyama breaks down in tears after Spurs-Thunder Game 7", src:'Athlon Sports', u:'https://athlonsports.com/nba/san-antonio-spurs/nba-victor-wembanyama-tears-spurs-thunder-game-7'},
+  {lvl:2, t:"Kevin Garnett criticizes Wembanyama FOR CRYING after WCF win: 'too emotional'", src:'Newsweek', u:'https://www.newsweek.com/sports/nba/kevin-garnett-criticizes-victor-wembanyama-for-crying-after-wcf-win-12026308'},
+  {lvl:3, t:"'Wasn't even touched' — NBA world rips Wembanyama for 'soft' flop on final play of Game 2", src:'PFN', u:'https://www.profootballnetwork.com/nba/nba-world-rips-victor-wembanyama-for-soft-flop-on-final-play-of-spurs-game-2-loss-to-knicks/'},
+  {lvl:3, t:"NBA admits Wembanyama fouled Brunson with Game 3 shove — but won't upgrade to flagrant", src:'CBS Sports', u:'https://www.cbssports.com/nba/news/victor-wembanyama-jalen-brunson-flagrant-foul-review-knicks-spurs-nba-finals-game-3/'},
+  {lvl:3, t:"'Cowards,' 'What a joke' — NBA world reacts as Wembanyama shove isn't upgraded", src:'PFN', u:'https://www.profootballnetwork.com/nba/cowards-joke-nba-world-reacts-as-victor-wembanyamas-shove-jalen-brunson-isnt-upgraded-flagrant-foul-june-2026/'},
+  {lvl:3, t:"Marbury warns Wemby after Brunson shove: 'pop him in his ribcage' (clarifies: 'Elbow=Knife')", src:'SI', u:'https://www.si.com/nba/former-knick-sends-warning-wemby-dirty-jalen-brunson-shove-nba-finals-game-three'},
+  {lvl:-1, t:"Salesian Sisters are the divine force behind Spurs' NBA Finals hopes", src:'ESPN', u:'https://www.espn.com/nba/story/_/id/48978546/divine-nuns-victor-wembanyama-san-antonio-spurs-nba-finals-hopes-new-york-knicks'},
+  {lvl:-1, t:"Spurs nuns, explained: how the Salesian Sisters became San Antonio's biggest fans", src:'Yahoo', u:'https://sports.yahoo.com/articles/spurs-nuns-explained-group-salesian-004651511.html'},
+];
+function postReal(lvl){
+  const pool = REAL_POSTS.filter(p => p.lvl===lvl || p.lvl===-1);
+  if (!pool.length) return;
+  const item = rnd(pool);
+  const el = document.createElement('a');
+  el.className = 'tweet real';
+  el.href = item.u; el.target = '_blank'; el.rel = 'noopener';
+  el.innerHTML = `
+    <div class="t-av" style="background:#10302c">📰</div>
+    <div class="t-main">
+      <span class="real-badge">REAL STORY — TAP TO READ</span>
+      <div class="t-body">${item.t}</div>
+      <div class="real-src">${item.src} · actually happened</div>
+    </div>`;
+  tweetsEl.prepend(el);
+  while (tweetsEl.children.length > 24) tweetsEl.removeChild(tweetsEl.lastChild);
+}
+
+const HOT_TAKES = [
+  ["KEVIN GARNISH","NBA Legend (Parody)","Crying in the FIRST ROUND?! Too emotional. I didn't cry until at least the second round. Anything can happen!"],
+  ["STEPHEN A. SMITHEREENS","Volume Analyst (Parody)","I have been SAYING — and nobody listens — that a 7-foot-5 man who feels NO PAIN is BAD for the sport of flopping. BAD!"],
+  ["SHACKLES O'NEAL","Hall of Fame Skeptic (Parody)","Back in my day, when a giant touched you, you cried AT HOME. In private. Like a professional."],
+  ["KENDRICK PERKINSAUR","Take Dispenser (Parody)","Mark my words: tears are up 400% league-wide. That's a Wemby problem, and frankly, a hydration positive."],
+];
+
+// ---------- INPUT ----------
+const keys = {};
+window.addEventListener('keydown', e=>{
+  keys[e.key.toLowerCase()] = true;
+  if ([' ','arrowup','arrowdown','arrowleft','arrowright'].includes(e.key.toLowerCase())) e.preventDefault();
+  if (G.scene==='montage'){ G.montage.t = 9999; return; }
+  if (e.key===' ') tryPoke();
+  if (e.key.toLowerCase()==='e') tryUlt();
+  if (e.key.toLowerCase()==='p') togglePause();
+});
+function togglePause(){
+  if (G.scene!=='play') return;
+  G.paused = !G.paused;
+  btnPause.textContent = G.paused ? '▶' : '⏸';
+  if (G.paused){
+    if (!G.replayMode) saveProgress();
+    showCard(`
+      <h2>TIMEOUT</h2>
+      <p>${G.replayMode
+        ? 'Replay series — your campaign save is untouched.'
+        : 'Progress saved. Resuming from the menu restarts this game at tip-off.'}</p>
+      <button class="go" onclick="togglePause()">RESUME</button>
+      <button class="go danger" onclick="exitToMenu()">MAIN MENU</button>
+      <p class="small">From the main menu: continue the pilgrimage, start a new one, or replay any conquered series.</p>
+    `);
+  } else {
+    hideCard();
+    toast('GO!');
+  }
+}
+window.togglePause = togglePause;
+window.exitToMenu = function(){
+  G.paused = false;
+  btnPause.textContent = '⏸';
+  G.replayMode = false;
+  G.scene = 'title';
+  showTitle();
+};
+// on-screen buttons (work on touch)
+const btnPause = document.getElementById('btn-pause');
+const btnAura = document.getElementById('btn-aura');
+btnPause.addEventListener('click', ()=>{ ac(); togglePause(); });
+btnAura.addEventListener('click', ()=>{ ac(); tryUlt(); });
+// fullscreen: real API where it exists (Android/desktop); iPhone Safari only goes
+// truly fullscreen as a Home Screen web app, so point people there instead
+const btnFs = document.getElementById('btn-fs');
+const IS_STANDALONE = (matchMedia('(display-mode: standalone)').matches ||
+                       matchMedia('(display-mode: fullscreen)').matches ||
+                       navigator.standalone === true);
+const IS_IOS = /iPhone|iPad|iPod/.test(navigator.userAgent);
+if (IS_STANDALONE) btnFs.style.display = 'none'; // already fullscreen
+btnFs.addEventListener('click', async ()=>{
+  ac();
+  try{
+    if (document.fullscreenElement){ await document.exitFullscreen(); return; }
+    const el = document.documentElement;
+    if (el.requestFullscreen){
+      await el.requestFullscreen();
+      try{ await screen.orientation.lock('landscape'); }catch(e){}
+    } else if (el.webkitRequestFullscreen){
+      el.webkitRequestFullscreen();
+    } else {
+      toast('SHARE → ADD TO HOME SCREEN');
+    }
+  }catch(e){
+    toast('SHARE → ADD TO HOME SCREEN');
+  }
+});
+window.addEventListener('keyup', e=> keys[e.key.toLowerCase()] = false);
+function canvasPos(e){
+  const r = canvas.getBoundingClientRect();
+  return [(e.clientX-r.left)*(W/r.width), (e.clientY-r.top)*(H/r.height)];
+}
+// touch & mouse: quick TAP = swipe at that spot; PRESS-AND-HOLD / DRAG = glide toward the pointer
+const touch = {active:false, id:null, x:0, y:0, t0:0, sx:0, sy:0, moved:false};
+canvas.addEventListener('pointerdown', e=>{
+  if (G.scene==='montage'){ G.montage.t = 9999; return; } // skip the cinematics
+  const [x,y] = canvasPos(e);
+  touch.active=true; touch.id=e.pointerId;
+  touch.x=x; touch.y=y; touch.sx=x; touch.sy=y;
+  touch.t0=performance.now(); touch.moved=false;
+  canvas.setPointerCapture && canvas.setPointerCapture(e.pointerId);
+});
+canvas.addEventListener('pointermove', e=>{
+  if (!touch.active || e.pointerId!==touch.id) return;
+  const [x,y] = canvasPos(e);
+  touch.x=x; touch.y=y;
+  if (Math.hypot(x-touch.sx, y-touch.sy) > 18) touch.moved=true;
+});
+function endTouch(e){
+  if (!touch.active || e.pointerId!==touch.id) return;
+  const dt = performance.now()-touch.t0;
+  if (!touch.moved && dt < 280){
+    // one tap = one swat, mouse and finger alike
+    tryPoke(Math.atan2(touch.y-(wemby.y-60), touch.x-wemby.x));
+  }
+  touch.active=false;
+}
+canvas.addEventListener('pointerup', endTouch);
+canvas.addEventListener('pointercancel', ()=>{ touch.active=false; });
+
+// ---------- GAME STATE ----------
+const G = {
+  scene:'title',        // title | intro | play | between | series-win | series-loss | hot-take | victory
+  level:0,
+  tears:0, absorbed:0,
+  combo:1, comboTimer:0,
+  ult:0,
+  gameNum:1, gamesWon:0, gamesLost:0,
+  scoreUs:0, scoreThem:0,
+  clock:0, fouls:0,
+  pokeCooldown:0,
+  shake:0, slowmo:0, transition:0, transitionMsg:'',
+  t:0, paused:false,
+  freeze:0, grace:0, distract:0, churro:0, swipa:0, wembyStun:0, rallyOn:false, flash:null,
+  replayMode:false, montage:null, dance:null, danceIdx:-1,
+};
+// ---------- SAVE / LOAD ----------
+const SAVE_KEY = 'wembyquest-save-v2';
+function saveProgress(over){
+  try{
+    localStorage.setItem(SAVE_KEY, JSON.stringify(Object.assign({
+      level:G.level, gameNum:G.gameNum, gamesWon:G.gamesWon, gamesLost:G.gamesLost,
+      tears:G.tears, absorbed:G.absorbed, ult:G.ult, ts:Date.now(),
+    }, over||{})));
+  }catch(e){}
+}
+function loadSave(){
+  try{ return JSON.parse(localStorage.getItem(SAVE_KEY)); }catch(e){ return null; }
+}
+function clearSave(){ try{ localStorage.removeItem(SAVE_KEY); }catch(e){} }
+// beaten-series trophy case (survives new runs)
+const BEATEN_KEY = 'wembyquest-beaten';
+function getBeaten(){ try{ return JSON.parse(localStorage.getItem(BEATEN_KEY)) || []; }catch(e){ return []; } }
+function addBeaten(lvl){
+  try{
+    const b = getBeaten();
+    if (!b.includes(lvl)){ b.push(lvl); localStorage.setItem(BEATEN_KEY, JSON.stringify(b)); }
+  }catch(e){}
+}
+const wemby = { x:480, y:300, vx:0, vy:0, speed:3.6, facing:1, bob:0, pokeAnim:0 };
+// post-game-win celebrations, rotated in order so every win gets a different one
+const DANCES = [
+  ['griddy', 'THE GRIDDY'],
+  ['floss',  'THE FLOSS'],
+  ['disco',  'DISCO WEMBY'],
+  ['shimmy', "THE 7'5\" SHIMMY"],
+];
+let opponents = [];
+let particles = [];
+let floaters = [];
+let ref = { x:140, y:140, vx:0.45, vy:0.3, shrug:0, whistle:0, point:0, persona:null };
+// real refs, parody vendettas. quirk = expected phantom fouls per game
+const REFS = [
+  {name:'TONY BROTHERS', quirk:1.2,  tagline:'personal vendetta (documented)'},
+  {name:'SCOTT FOSTER',  quirk:0.9,  tagline:'The Extender'},
+  {name:'MARC DAVIS',    quirk:0.65, tagline:'sees things others cannot'},
+  {name:'ED MALLOY',     quirk:0.5,  tagline:'whistle enthusiast'},
+];
+function isHome(){ return L().homeGames.includes(G.gameNum); }
+const PHANTOM_REASONS = ['EXISTING TOO TALL','VIBES','HIS SHADOW MADE CONTACT','BEING FRENCH','BLINKING AGGRESSIVELY','THE LEAGUE OFFICE TEXTED','RETROACTIVE EYE CONTACT','TOO MANY TEARS CAUSED'];
+function phantomFoul(){
+  if (G.grace>0){
+    floatText(wemby.x, wemby.y-150, 'THE SISTERS SAY NO ✋', '#ffd23f', 20);
+    return false;
+  }
+  G.fouls++;
+  ref.point = 90; ref.whistle = 0;
+  sfx.foul();
+  G.shake = Math.max(G.shake, 10);
+  const reason = rnd(PHANTOM_REASONS);
+  toast(`${ref.persona.name}: FOUL ON WEMBY`, true);
+  floatText(wemby.x, wemby.y-150, `REASON: ${reason}`, '#ff5470', 19);
+  if (Math.random()<0.6) postTweet({body:`${ref.persona.name} just called "${reason}" on Wembanyama and honestly? Correct call. Finally some integrity in this league.`});
+  if (G.fouls>=6){ endGame('foulout'); return true; }
+  return false;
+}
+let timers = { scorer:0, enforcer:0, flopper:0 };
+const HOOP = { x:64, y:0 }; // y set on resize
+
+function L(){ return LEVELS[G.level]; }
+function rnd(a){ return a[Math.floor(Math.random()*a.length)]; }
+
+// ---------- ROSTERS (real players; faces stream from NBA's public headshot CDN) ----------
+// [display name, jersey number, nba.com player id]
+const ROSTERS = {
+  POR:[['SCOOT','00',1630703],['HOLIDAY',4,201950],['AVDIJA',8,1630166],['GRANT',9,203924],['SHARPE',17,1631101],['CLINGAN',23,1642270]],
+  MIN:[['EDWARDS',5,1630162],['GOBERT',27,203497],['RANDLE',30,203944],['REID',11,1629675],['McDANIELS',3,1630183],['CONLEY',10,201144]],
+  OKC:[['SGA',2,1628983],['J-DUB',8,1631114],['CHET',7,1631096],['DORT',5,1629652],['McCAIN 💅',20,1642272],['CARUSO',9,1627936]],
+  NYK:[['BRUNSON',11,1628973],['TOWNS',32,1626157],['BRIDGES',25,1628969],['ANUNOBY',8,1628384],['HART',3,1628404],['ROBINSON',23,1629011]],
+};
+// face loader — falls back to drawn cartoon heads if a headshot 404s or you're offline
+const faceCache = {};
+function getFace(id){
+  if (!id) return null;
+  if (faceCache[id]) return faceCache[id];
+  const img = new Image();
+  img.ok = false;
+  img.onload = ()=>{ img.ok = true; };
+  img.onerror = ()=>{ img.ok = false; };
+  img.src = `https://cdn.nba.com/headshots/nba/latest/260x190/${id}.png`;
+  faceCache[id] = img;
+  return img;
+}
+const WEMBY_FACE_ID = 1641705;
+
+function makeOpponent(role){
+  const lv = L();
+  // spawn position by role
+  let x, y = 90 + Math.random()*(H-140);
+  if (role==='scorer') x = W + 40;
+  else { x = Math.random()<.5 ? -40 : W+40; }
+  // prefer players not already on the court (no more three Jerami Grants at once)
+  const onCourt = new Set(opponents.filter(o=>o.state!=='gone').map(o=>o.name));
+  const pool = ROSTERS[lv.abbr].filter(r=>!onCourt.has(r[0]));
+  const [name,num,fid] = rnd(pool.length ? pool : ROSTERS[lv.abbr]);
+  return {
+    role, x, y, vx:0, vy:0, face:getFace(fid),
+    h: role==='enforcer' ? 92+Math.random()*10 : 82+Math.random()*10,
+    // playoff intensity: deeper games + road games + rallies all add juice
+    speed: (0.95+Math.random()*0.4) * lv.oppSpeed * (role==='scorer'?1.1:1) * (1+(G.gameNum-1)*0.05) * (isHome()?1:1.08) * (G.rallyOn?1.12:1),
+    headScale: name==='BRUNSON' ? 2.1 : 1,
+    state: role==='scorer' ? 'drive' : (role==='flopper' ? 'lurk' : 'charge'),
+    timer:0, rot:0, vrot:0, cryEmit:0, legPhase:Math.random()*6,
+    name, num,
+    skin:rnd(SKINS), hair:rnd(HAIRSTYLES), hairColor:rnd(HAIRCOLORS),
+    expression:'game', ballPhase:Math.random()*6,
+    windup:0, layup:0, facing:-1,
+  };
+}
+function spawnRole(role, cap){
+  if (opponents.filter(o=>o.role===role && !['flopping','crying','gone','exit'].includes(o.state)).length >= cap) return;
+  opponents.push(makeOpponent(role));
+}
+
+// ---------- PARTICLES & FLOATERS ----------
+function burst(x,y,n,kind){
+  for(let i=0;i<n;i++){
+    const a = Math.random()*Math.PI*2, s = 1+Math.random()*4;
+    particles.push({
+      x,y, vx:Math.cos(a)*s, vy:Math.sin(a)*s - 2,
+      life: 40+Math.random()*30, max:70, kind,
+      size: kind==='tear' ? 3+Math.random()*4 : 2+Math.random()*3,
+      g: kind==='tear'?0.18:0.1,
+    });
+  }
+}
+function floatText(x,y,txt,color,size=22){
+  floaters.push({x,y,txt,color,size,life:60,vy:-1.1});
+}
+function toast(txt, bad=false){
+  announceEl.textContent = txt;
+  announceEl.classList.toggle('bad', bad);
+  announceEl.classList.remove('show'); void announceEl.offsetWidth;
+  announceEl.classList.add('show');
+}
+
+// ---------- X-STYLE FEED ----------
+let tweetCount = 0;
+const ICON = {
+  reply:'<svg viewBox="0 0 24 24"><path d="M1.751 10c0-4.42 3.584-8 8.005-8h4.366c4.49 0 8.129 3.64 8.129 8.13 0 2.96-1.607 5.68-4.196 7.11l-8.054 4.46v-3.69h-.067c-4.49.1-8.183-3.51-8.183-8.01z"/></svg>',
+  rt:'<svg viewBox="0 0 24 24"><path d="M4.5 3.88l4.432 4.14-1.364 1.46L5.5 7.55V16c0 1.1.896 2 2 2H13v2H7.5c-2.209 0-4-1.79-4-4V7.55L1.432 9.48.068 8.02 4.5 3.88zM16.5 6H11V4h5.5c2.209 0 4 1.79 4 4v8.45l2.068-1.93 1.364 1.46-4.432 4.14-4.432-4.14 1.364-1.46 2.068 1.93V8c0-1.1-.896-2-2-2z"/></svg>',
+  like:'<svg viewBox="0 0 24 24"><path d="M16.697 5.5c-1.222-.06-2.679.51-3.89 2.16l-.805 1.09-.806-1.09C9.984 6.01 8.526 5.44 7.304 5.5c-1.243.07-2.349.78-2.91 1.91-.552 1.12-.633 2.78.479 4.82 1.074 1.97 3.257 4.27 7.129 6.61 3.87-2.34 6.052-4.64 7.126-6.61 1.111-2.04 1.03-3.7.477-4.82-.561-1.13-1.666-1.84-2.908-1.91z"/></svg>',
+  views:'<svg viewBox="0 0 24 24"><path d="M8.75 21V3h2v18h-2zM18 21V8.5h2V21h-2zM4 21l.004-10h2L6 21H4zm9.248 0v-7h2v7h-2z"/></svg>',
+  x:'<svg viewBox="0 0 24 24"><path d="M18.244 2.25h3.308l-7.227 8.26 8.502 11.24H16.17l-5.214-6.817L4.99 21.75H1.68l7.73-8.835L1.254 2.25H8.08l4.713 6.231zm-1.161 17.52h1.833L7.084 4.126H5.117z"/></svg>',
+  badge:'<svg class="t-badge" viewBox="0 0 22 22"><path fill="#1d9bf0" d="M20.396 11c-.018-.646-.215-1.275-.57-1.816-.354-.54-.852-.972-1.438-1.246.223-.607.27-1.264.14-1.897-.131-.634-.437-1.218-.882-1.687-.47-.445-1.053-.75-1.687-.882-.633-.13-1.29-.083-1.897.14-.273-.587-.704-1.086-1.245-1.44S11.647 1.62 11 1.604c-.646.017-1.273.213-1.813.568s-.969.854-1.24 1.44c-.608-.223-1.267-.272-1.902-.14-.635.13-1.22.436-1.69.882-.445.47-.749 1.055-.878 1.688-.13.633-.08 1.29.144 1.896-.587.274-1.087.705-1.443 1.245-.356.54-.555 1.17-.574 1.817.02.647.218 1.276.574 1.817.356.54.856.972 1.443 1.245-.224.606-.274 1.263-.144 1.896.13.634.433 1.218.877 1.688.47.443 1.054.747 1.687.878.633.132 1.29.084 1.897-.136.274.586.705 1.084 1.246 1.439.54.354 1.17.551 1.816.569.647-.016 1.276-.213 1.817-.567s.972-.854 1.245-1.44c.604.239 1.266.296 1.903.164.636-.132 1.22-.447 1.68-.907.46-.46.776-1.044.908-1.681s.075-1.299-.165-1.903c.586-.274 1.084-.705 1.439-1.246.354-.54.551-1.17.569-1.816zM9.662 14.85l-3.429-3.428 1.293-1.302 2.072 2.072 4.4-4.794 1.347 1.246z"/></svg>',
+};
+function fmtN(n){
+  if (n>=1e6) return (n/1e6).toFixed(1)+'M';
+  if (n>=1e3) return (n/1e3).toFixed(1)+'K';
+  return ''+n;
+}
+function postTweet(opts={}){
+  // opts: {body, who:[name,handle,emoji], breaking, support}
+  const lv = L();
+  let who, body = opts.body;
+  if (opts.who) who = opts.who;
+  else if (opts.support){ const s = rnd(TW_SUPPORT); who = [s[0],s[1],s[2]]; body = s[3]; }
+  else who = rnd(lv.handles);
+  if (!body) body = rnd(lv.tweets);
+  const el = document.createElement('div');
+  el.className = 'tweet' + (opts.breaking ? ' breaking' : '');
+  const likes = Math.floor(Math.random()*45000+300);
+  const rts = Math.floor(likes*(0.2+Math.random()*0.3));
+  const replies = Math.floor(likes*(0.05+Math.random()*0.1));
+  const views = Math.floor(likes*(20+Math.random()*40));
+  const secs = Math.floor(Math.random()*55)+2;
+  const time = secs<60 ? secs+'s' : Math.floor(secs/60)+'m';
+  const hue = Math.floor(Math.random()*360);
+  el.innerHTML = `
+    <div class="t-av" style="background:linear-gradient(135deg,hsl(${hue},55%,30%),hsl(${(hue+60)%360},55%,20%))">${who[2]}</div>
+    <div class="t-main">
+      <div class="t-head">
+        <span class="t-name">${who[0]}</span>${ICON.badge}
+        <span class="t-handle">${who[1]} · ${time}</span>
+        ${ICON.x.replace('<svg','<svg class="t-x"')}
+      </div>
+      <div class="t-body">${opts.breaking ? '🚨 <b>BREAKING:</b> ' : ''}${body}</div>
+      <div class="t-actions">
+        <span class="t-act">${ICON.reply}${fmtN(replies)}</span>
+        <span class="t-act rt">${ICON.rt}${fmtN(rts)}</span>
+        <span class="t-act liked">${ICON.like}${fmtN(likes)}</span>
+        <span class="t-act">${ICON.views}${fmtN(views)}</span>
+      </div>
+    </div>`;
+  tweetsEl.prepend(el);
+  tweetCount++;
+  if (tweetCount % 8 === 0) postReal(G.level); // sprinkle in actual journalism
+  while (tweetsEl.children.length > 24) tweetsEl.removeChild(tweetsEl.lastChild);
+}
+
+// ---------- ACTIONS ----------
+function tryPoke(angle){
+  if (G.scene!=='play' || G.paused || G.pokeCooldown>0 || G.wembyStun>0) return;
+  // SPACE pokes the way Wemby is moving/facing; clicks poke toward the cursor
+  if (angle===undefined) angle = (wemby.dirAngle!==undefined) ? wemby.dirAngle : (wemby.facing===1?0:Math.PI);
+  wemby.pokeAngle = angle;
+  wemby.facing = Math.cos(angle)>=0 ? 1 : -1;
+  G.pokeCooldown = 21;
+  wemby.pokeAnim = 12;
+  sfx.poke();
+  const REACH = G.swipa>0 ? 190 : 140, CONE = 1.0; // long arm (longer in Swipa mode), ~115° arc
+  let hit = 0;
+  for (const o of opponents){
+    if (!['drive','charge','bounce','lurk','windup','layup','grapple'].includes(o.state)) continue;
+    const dx=o.x-wemby.x, dy=o.y-(wemby.y-20);
+    const d = Math.hypot(dx,dy);
+    if (d > REACH) continue;
+    let diff = Math.abs(Math.atan2(dy,dx) - angle);
+    if (diff > Math.PI) diff = Math.PI*2 - diff;
+    if (d < 50 || diff < CONE){
+      const denied = (o.role==='flopper');
+      flop(o, dx, dy, 1, denied);
+      hit++;
+    }
+  }
+  if (hit===0) floatText(wemby.x, wemby.y-110, 'whiff', '#777', 16);
+  else if (hit>=2) floatText(wemby.x, wemby.y-120, 'MULTI-FLOP!', '#E13A8E', 28);
+}
+function flop(o, dx, dy, power, denied=false){
+  const d = Math.max(12, Math.hypot(dx,dy));
+  o.state='flopping'; o.timer=0; o.expression='cry';
+  o.vx = (dx/d)*(7+Math.random()*5)*power;
+  o.vy = (dy/d)*(7+Math.random()*5)*power - 3;
+  o.vrot = (Math.random()<.5?-1:1)*(0.25+Math.random()*0.3);
+  sfx.flop();
+  if (o.name==='TOWNS') flamboyantWail();
+  if (o.name.startsWith('McCAIN')) floatText(o.x, o.y-130, 'NOT THE FRESH SET!! 💅', '#E13A8E', 20);
+  // points: every drawn flop = a bucket in transition
+  const refNear = Math.hypot(ref.x-o.x, ref.y-o.y) < 190;
+  const pts = 2 + (refNear?1:0);
+  G.scoreUs += pts;
+  sfx.bucketUs();
+  // tears economy
+  G.comboTimer = 130;
+  const gain = (2 + (refNear?2:0) + (denied?2:0)) * G.combo;
+  G.tears += gain;
+  G.combo = Math.min(8, G.combo+1);
+  G.ult = Math.min(100, G.ult + 6);
+  burst(o.x, o.y-30, 14, 'tear');
+  burst(o.x, o.y-40, 8, 'star');
+  floatText(o.x, o.y-70, `+${pts} PTS${refNear?' AND-ONE!':''}`, '#ffd23f', refNear?24:20);
+  floatText(o.x, o.y-92, `+${gain} tears`, '#6fd6ff', 15);
+  if (denied){
+    floatText(o.x, o.y-114, 'FLOP DENIED!', '#E13A8E', 22);
+    if (Math.random()<0.8) postTweet({body:rnd(TW_DENIED)});
+  } else {
+    const WAILS = ['WAAAH!','MY ANKLES!','I FELT A BREEZE!','HE LOOKED AT ME!','TELL MY AGENT!','OW. EMOTIONALLY.','THE AUDACITY!','I NEED A BLANKET!'];
+    floatText(o.x, o.y-114, rnd(WAILS), '#fff', 17);
+    if (Math.random()<0.55) postTweet({});
+  }
+  if (refNear){ ref.whistle = 50; sfx.whistle(); setTimeout(()=>sfx.cry(), 180); }
+}
+function tryUlt(){
+  if (G.scene!=='play' || G.paused || G.ult<100) return;
+  G.ult = 0; G.slowmo = 80; G.shake = 18;
+  sfx.ult();
+  toast('ALIEN AURA');
+  let n=0;
+  for (const o of opponents){
+    if (['drive','charge','bounce','lurk','windup','layup','grapple'].includes(o.state)){
+      const dx=o.x-wemby.x||0.01, dy=o.y-wemby.y||0.01;
+      setTimeout(()=>{ if(G.scene==='play') flop(o,dx,dy,1.8); }, n*90);
+      n++;
+    }
+  }
+  if (n>0) postTweet({body:"HE ACTIVATED HIS AURA AND OUR ENTIRE ROTATION FLOPPED IN UNISON. SYNCHRONIZED CRYING. THIS LEAGUE."});
+}
+
+// ---------- GAME / SERIES FLOW ----------
+function startGame(){
+  G.scene='play';
+  G.paused=false;
+  G.scoreUs=0; G.scoreThem=0; G.fouls=0;
+  G.clock = L().gameSecs * 60;
+  G.combo=1; G.pokeCooldown=0; G.freeze=0; G.flash=null;
+  G.grace=0; G.distract=0; G.churro=0; G.swipa=0; G.wembyStun=0; G.rallyOn=false;
+  opponents=[]; particles=[]; floaters=[]; powerups=[];
+  wemby.x=W*0.4; wemby.y=H/2;
+  timers = { scorer: 60, enforcer: 150, flopper: L().flopperEvery*60*0.7, power: 3.5*60 };
+  ref.persona = rnd(REFS);
+  renderPips();
+  toast(`GAME ${G.gameNum} — REF: ${ref.persona.name}`);
+}
+function endGame(reason){
+  // reason: 'buzzer' | 'foulout'
+  sfx.buzzer();
+  let won;
+  if (reason==='foulout'){
+    won = false;
+    toast('FOULED OUT?!', true);
+    postTweet({who:INSIDER, breaking:true, body:`Victor Wembanyama has FOULED OUT of Game ${G.gameNum} after six Oscar-nominated performances by the ${L().short}. Sources say he touched no one.`});
+  } else {
+    if (G.scoreUs === G.scoreThem){
+      // overtime: 12 more seconds
+      G.clock = 12*60;
+      toast('OVERTIME!');
+      return;
+    }
+    won = G.scoreUs > G.scoreThem;
+  }
+  G.scene='between';
+  G.transition = won ? 260 : 130; // wins linger: there is a dance to perform
+  if (won){
+    G.gamesWon++;
+    G.transitionMsg = `SPURS WIN GAME ${G.gameNum}  ·  ${G.scoreUs}–${G.scoreThem}`;
+    sfx.win();
+    // everyone else hits the floor; the big man hits the catwalk
+    for (const o of opponents){
+      if (!['crying','selfflop','flopping','gone','ftdraw'].includes(o.state)){
+        o.state='crying'; o.timer=0; o.expression='cry'; o.vrot = Math.random()<.5?-1:1;
+        burst(o.x, o.y-30, 8, 'tear');
+      }
+    }
+    G.danceIdx = (G.danceIdx+1) % DANCES.length;
+    G.dance = {type: DANCES[G.danceIdx][0], name: DANCES[G.danceIdx][1], t:0};
+  } else {
+    G.dance = null;
+    G.gamesLost++;
+    G.transitionMsg = reason==='foulout'
+      ? `GAME ${G.gameNum} LOST — FOULED OUT (six phantom fouls)`
+      : `${L().short} WIN GAME ${G.gameNum}  ·  ${G.scoreThem}–${G.scoreUs}`;
+    sfx.lose();
+    if (reason!=='foulout') postTweet({body:rnd(TW_SMUG)});
+  }
+  G.gameNum++;
+  renderPips();
+  if (!G.replayMode && G.gamesWon<4 && G.gamesLost<4) saveProgress();
+}
+function afterTransition(){
+  G.dance = null;
+  if (G.gamesWon>=4) return seriesWon();
+  if (G.gamesLost>=4) return seriesLost();
+  startGame();
+}
+function seriesWon(){
+  G.scene='series-win';
+  sfx.win();
+  // campaign wins imply every earlier round was conquered too
+  if (G.replayMode) addBeaten(G.level);
+  else for (let i=0;i<=G.level;i++) addBeaten(i);
+  postReal(G.level);
+  const lv=L();
+  if (G.replayMode){
+    showCard(`
+      <h2>SERIES RECONQUERED!</h2>
+      <div class="vs"><span class="team" style="background:var(--spurs-silver);color:#000">SPURS</span> ${G.gamesWon}–${G.gamesLost} <span class="team" style="background:${lv.jersey};color:#fff">${lv.short}</span></div>
+      <p>History repeats itself, and it is still crying about it.</p>
+      <button class="go" onclick="backToTitle()">BACK TO TITLE</button>
+    `);
+    return;
+  }
+  postTweet({who:INSIDER, breaking:true, body:`The San Antonio Spurs have eliminated the ${lv.opp} ${G.gamesWon}–${G.gamesLost}. ${lv.short} players received a standing ovation from the Academy.`});
+  showCard(`
+    <h2>SERIES WON!</h2>
+    <div class="vs"><span class="team" style="background:var(--spurs-silver);color:#000">SPURS</span> ${G.gamesWon}–${G.gamesLost} <span class="team" style="background:${lv.jersey};color:#fff">${lv.short}</span></div>
+    <p>${lv.realResult}</p>
+    <p>Tears harvested: <b style="color:var(--tear)">${G.tears}</b> &nbsp;·&nbsp; Contact absorbed: <b style="color:var(--fiesta-teal)">${G.absorbed}</b></p>
+    <button class="go" onclick="nextStep()">TO THE STUDIO SHOW →</button>
+  `);
+}
+function seriesLost(){
+  G.scene='series-loss';
+  sfx.lose();
+  if (!G.replayMode) saveProgress({gameNum:1, gamesWon:0, gamesLost:0}); // quitting here resumes a fresh series at this round
+  const lv=L();
+  postTweet({who:INSIDER, breaking:true, body:`UPSET COMPLETE: the ${lv.opp} have eliminated San Antonio ${G.gamesLost}–${G.gamesWon}. The series will be remembered for its bravery, its drama, and its 600 gallons of tears (theirs).`});
+  showCard(`
+    <h2 class="loss">ELIMINATED</h2>
+    <div class="vs"><span class="team" style="background:${lv.jersey};color:#fff">${lv.short}</span> ${G.gamesLost}–${G.gamesWon} <span class="team" style="background:var(--spurs-silver);color:#000">SPURS</span></div>
+    <p>The crybabies advance. Somewhere, a flop artist is giving a tearful acceptance speech and thanking his stunt coordinator.</p>
+    <div class="quote"><b>KEVIN GARNISH</b> — NBA Legend (Parody)<br>"See?? THIS is why you don't cry in the ${lv.name}. You save the tears. You BUDGET the tears. Rookie mistake."</div>
+    <p class="small">In this universe the refs won. Run it back and protect the timeline — in real life the Spurs ${G.level<3 ? 'actually won this series' : 'are still alive: Game 4 is tonight'}.</p>
+    <button class="go danger" onclick="rematch()">RUN IT BACK</button>
+    ${G.replayMode ? '<button class="go" onclick="backToTitle()">TITLE</button>' : ''}
+  `);
+}
+window.rematch = function(){
+  G.gameNum=1; G.gamesWon=0; G.gamesLost=0;
+  hideCard();
+  startGame();
+};
+window.nextStep = function(){
+  if (G.scene==='series-win'){
+    G.scene='hot-take';
+    const take = HOT_TAKES[Math.min(G.level, HOT_TAKES.length-1)];
+    showCard(`
+      <h3>INSTANT REACTION DESK 📺</h3>
+      <div class="quote"><b>${take[0]}</b> — ${take[1]}<br>"${take[2]}"</div>
+      ${(() => { const r = REAL_POSTS.filter(p=>p.lvl===G.level)[0]; return r ? `<p class="small">📰 Meanwhile, in reality: <a href="${r.u}" target="_blank" rel="noopener" style="color:var(--fiesta-teal)">${r.t}</a> (${r.src})</p>` : ''; })()}
+      <p class="small">(In real life the hot takes were about Wemby crying after the Western Conference Finals. We simply… redirected them.)</p>
+      <button class="go" onclick="nextStep()">NEXT ROUND →</button>
+    `);
+  } else if (G.scene==='hot-take'){
+    if (G.level < LEVELS.length-1){
+      G.level++;
+      startMontage();
+    } else {
+      showVictory();
+    }
+  }
+};
+// ---------- TRAVEL MONTAGE: croissant-class vessel, destination hostile arena ----------
+function startMontage(){
+  G.scene='montage';
+  G.montage = { t:0, city: L().city };
+  hideCard();
+  ouiOui();
+  // UFO hum
+  if (!muted){ tone(70,2.4,'sine',0.07,110); tone(140,2.4,'sine',0.04,200); }
+}
+function drawMontage(){
+  const m = G.montage; if (!m) return;
+  const t = m.t;
+  // night sky
+  const sky = ctx.createLinearGradient(0,0,0,H);
+  sky.addColorStop(0,'#05030f'); sky.addColorStop(0.7,'#141031'); sky.addColorStop(1,'#241a3a');
+  ctx.fillStyle=sky; ctx.fillRect(0,0,W,H);
+  // stars (deterministic)
+  ctx.fillStyle='rgba(255,255,255,0.8)';
+  for(let i=0;i<70;i++){
+    const sx=((i*173)%W), sy=((i*97)%Math.floor(H*0.6));
+    if ((i+Math.floor(t/14))%9) ctx.fillRect(sx,sy,2,2);
+  }
+  // skyline
+  ctx.fillStyle='#0a0816';
+  for(let i=0;i<14;i++){
+    const bw2=40+((i*53)%70), bh2=60+((i*101)%150), bx=i*(W/14);
+    ctx.fillRect(bx, H-160-bh2, bw2, bh2+160);
+    ctx.fillStyle='#2a2348';
+    for(let wy=0;wy<bh2-20;wy+=22) for(let wx=8;wx<bw2-10;wx+=16)
+      if (((i+wx+wy)%5)===0) ctx.fillRect(bx+wx, H-160-bh2+10+wy, 6, 8);
+    ctx.fillStyle='#0a0816';
+  }
+  // the arena (dome of grievances)
+  const ax=W/2, ay=H-90;
+  ctx.fillStyle='#181230';
+  ctx.beginPath(); ctx.ellipse(ax, ay, 240, 95, 0, Math.PI, 0); ctx.fill();
+  ctx.strokeStyle='#3a2f63'; ctx.lineWidth=3; ctx.stroke();
+  ctx.fillStyle='#ffd23f';
+  for(let i=-4;i<=4;i++) ctx.fillRect(ax+i*46-10, ay-38, 20, 7);
+  // sweeping spotlights
+  for (const dir of [-1,1]){
+    ctx.save();
+    ctx.translate(ax+dir*180, ay-8);
+    ctx.rotate(dir * (Math.sin(t*0.02)*0.45 - 0.5));
+    const lg = ctx.createLinearGradient(0,0,0,-H);
+    lg.addColorStop(0,'rgba(255,240,200,0.22)'); lg.addColorStop(1,'rgba(255,240,200,0)');
+    ctx.fillStyle=lg;
+    ctx.beginPath(); ctx.moveTo(-12,0); ctx.lineTo(-70,-H); ctx.lineTo(70,-H); ctx.lineTo(12,0); ctx.closePath(); ctx.fill();
+    ctx.restore();
+  }
+  // croissant-class vessel descends
+  const shipY = Math.min(H*0.3, 40 + t*1.4);
+  const shipX = ax + Math.sin(t*0.03)*14;
+  ctx.save();
+  ctx.translate(shipX, shipY);
+  ctx.rotate(-0.1);
+  // a croissant is segmented dough: fat middle, rolled segments tapering to curled tips
+  const SEGS = 9, R0 = 62;
+  const segAt = (u) => {
+    const ang = (Math.PI + 0.35) - u*(Math.PI + 0.7); // wide crescent, tips dip just past horizontal
+    return {
+      x: Math.cos(ang)*R0*1.12,
+      y: -Math.sin(ang)*R0*0.66,
+      r: 9 + 17*Math.max(0.26, Math.sin(ang)),        // fat middle roll, tapering arms
+      tilt: Math.atan2(-Math.cos(ang)*0.66, Math.sin(ang)),
+    };
+  };
+  // paint tips first so the fat middle segments overlap on top, like rolled dough
+  for (const i of [0,8,1,7,2,6,3,5,4]){
+    const s = segAt(i/(SEGS-1));
+    const g3 = ctx.createLinearGradient(s.x, s.y-s.r, s.x, s.y+s.r);
+    g3.addColorStop(0,'#f6cf72'); g3.addColorStop(0.55,'#e0a23e'); g3.addColorStop(1,'#b06f22');
+    ctx.fillStyle=g3;
+    ctx.strokeStyle='#7a4f14'; ctx.lineWidth=2.5;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y, s.r*1.15, s.r*0.85, s.tilt, 0, 7);
+    ctx.fill(); ctx.stroke();
+    // baked sheen on top of each roll
+    ctx.strokeStyle='rgba(255,238,190,0.55)'; ctx.lineWidth=2;
+    ctx.beginPath();
+    ctx.ellipse(s.x, s.y-s.r*0.16, s.r*0.72, s.r*0.48, s.tilt, Math.PI*1.15, Math.PI*1.85);
+    ctx.stroke();
+  }
+  // portholes along the middle rolls (it is still a vessel)
+  ctx.fillStyle='#9fe8ff';
+  for (const u of [0.32, 0.5, 0.68]){
+    const s = segAt(u);
+    ctx.beginPath(); ctx.arc(s.x, s.y+2, 4.5, 0, 7); ctx.fill();
+    ctx.strokeStyle='rgba(0,0,0,0.5)'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(s.x, s.y+2, 4.5, 0, 7); ctx.stroke();
+  }
+  // running lights on the curled tips
+  ctx.fillStyle='#ff5470';
+  for (const u of [0,1]){
+    const s = segAt(u);
+    if (Math.floor(t/20)%2===0){ ctx.beginPath(); ctx.arc(s.x, s.y, 3, 0, 7); ctx.fill(); }
+  }
+  ctx.restore();
+  // beam + descending wemby
+  if (t > 110){
+    const ba = Math.min(0.5, (t-110)/60*0.5);
+    const bg2 = ctx.createLinearGradient(0,shipY,0,ay);
+    bg2.addColorStop(0,`rgba(0,178,169,${ba})`); bg2.addColorStop(1,'rgba(0,178,169,0.04)');
+    ctx.fillStyle=bg2;
+    ctx.beginPath(); ctx.moveTo(shipX-16, shipY+30); ctx.lineTo(shipX-90, ay); ctx.lineTo(shipX+90, ay); ctx.lineTo(shipX+16, shipY+30); ctx.closePath(); ctx.fill();
+    const wy = shipY+60 + Math.min(1,(t-110)/130) * (ay-shipY-90);
+    drawPlayer({
+      x:shipX, y:wy, h:74, slim:true, skin:'#7a4a26',
+      jersey:'#0c0c10', trim:'#C4CED4', shorts:'#0c0c10', num:1,
+      pose:'idle', facing:1, expression:'game', face:getFace(WEMBY_FACE_ID), headScale:1.4, armLen:1.5,
+    });
+  }
+  // titles
+  ctx.textAlign='center';
+  ctx.font='900 46px Bangers, cursive';
+  ctx.lineWidth=6; ctx.strokeStyle='#000';
+  ctx.strokeText('NEXT STOP: '+m.city, W/2, 84);
+  ctx.fillStyle='#EF8633';
+  ctx.fillText('NEXT STOP: '+m.city, W/2, 84);
+  ctx.font='800 15px Barlow Condensed'; ctx.fillStyle='#C4CED4';
+  ctx.fillText('CROISSANT-CLASS VESSEL · NON-STOP SERVICE · COMPLIMENTARY TEARS', W/2, 110);
+  ctx.fillStyle='rgba(255,255,255,0.6)';
+  ctx.fillText('tap / click / any key to skip', W/2, H-16);
+}
+function startIntro(){
+  G.scene='intro';
+  const lv=L();
+  G.gameNum=1; G.gamesWon=0; G.gamesLost=0;
+  saveProgress();
+  getFace(WEMBY_FACE_ID);
+  ROSTERS[lv.abbr].forEach(r=>getFace(r[2]));
+  showCard(`
+    <h3>${lv.name} · BEST OF 7</h3>
+    <h2>vs ${lv.opp}</h2>
+    <p>${lv.intro}</p>
+    ${lv.realTalk||''}
+    <div class="rules">
+      <div class="rule"><b>🏀 STOP THE DRIVES</b>They dribble at your hoop. Body them (absorb) or poke them (flop = +2 pts you).</div>
+      <div class="rule"><b>🤸 BEWARE FLOP ARTISTS</b>The flashing ones dive near the ref to draw fouls ON YOU. Poke them first, or stay far away.</div>
+      <div class="rule bad"><b>🚨 6 FOULS = OUT</b>Foul out and the game is gone. The refs believe every performance.</div>
+      <div class="rule"><b>🏆 FIRST TO 4 WINS</b>Outscore them before the buzzer. Lose 4 games and the crybabies advance.</div>
+    </div>
+    <button class="go" onclick="beginSeries()">GAME 1 — TIP-OFF</button>
+  `);
+}
+window.beginSeries = function(){
+  hideCard();
+  ac();
+  startGame();
+};
+function showVictory(){
+  G.scene='victory';
+  addBeaten(3);
+  clearSave();
+  sfx.win(); setTimeout(()=>sfx.win(),500);
+  showCard(`
+    <h2>TO BE CONTINUED…</h2>
+    <p><b>Here's the twist:</b> this last series is real and it isn't finished. The Knicks lead the actual 2026 NBA Finals <b>2–1</b>, and Game 4 tips off <b style="color:var(--fiesta-orange)">TONIGHT — June 10, 2026</b> — at Madison Square Garden.</p>
+    <div class="quote"><b>FINAL STATS</b><br>
+      Career tears harvested: <b style="color:#6fd6ff">${G.tears}</b><br>
+      Contact absorbed without flinching: <b style="color:var(--fiesta-teal)">${G.absorbed}</b><br>
+      Crybaby posts generated: <b style="color:var(--fiesta-pink)">${tweetCount}</b><br>
+      Phantom fouls survived: more than any man should bear</div>
+    <p class="small">In reality, the discourse runs the other way: Wemby got roasted for a Game 2 flop, debated over a Game 3 dust-up with Brunson, and criticized BY A HALL OF FAMER for crying tears of joy. The man cannot win. Except, possibly, tonight.</p>
+    <button class="go" onclick="restart()">RUN IT BACK</button>
+  `);
+}
+window.restart = function(){
+  G.level=0; G.tears=0; G.absorbed=0; G.ult=0; tweetCount=0;
+  tweetsEl.innerHTML='';
+  startIntro();
+};
+function showCard(html){ card.innerHTML=html; overlay.classList.remove('hidden'); }
+function hideCard(){ overlay.classList.add('hidden'); }
+
+// ---------- TITLE ----------
+function showTitle(){
+  const s = loadSave();
+  const hasRun = s && (s.level>0 || s.gameNum>1 || s.gamesWon>0 || s.gamesLost>0);
+  const contBtn = hasRun
+    ? `<button class="go" onclick="continueRun()">CONTINUE — ${LEVELS[Math.min(s.level,3)].name}, GAME ${s.gameNum}</button>`
+    : '';
+  showCard(`
+    <h2 style="font-size:60px">WEMBYQUEST</h2>
+    <p style="margin-top:-2px;font-style:italic">The 2026 Playoff Ascension — a parody RPG of gentle violence</p>
+    <p>You are <b>7'5"</b>. Opponents bounce off you like shopping carts off a cathedral. Your gentlest poke sends professionals into theatrical despair. But the league has adapted: now they <b>drive to your hoop</b>, and their <b>flop artists</b> dive near the referee to pin phantom fouls on you.</p>
+    <div class="controls">
+      <span class="key"><b>WASD / ←↑↓→</b> glide</span>
+      <span class="key"><b>CLICK</b> swipe at cursor</span>
+      <span class="key"><b>SPACE</b> swipe ahead</span>
+      <span class="key"><b>E</b> alien aura (at 100%)</span>
+      <span class="key"><b>P</b> pause</span>
+      <span class="key"><b>M</b> mute</span>
+    </div>
+    <p class="small" style="margin-top:12px">Best of 7, every round — and every round gets meaner. Win 4 before they do, or foul out and watch the crybabies advance. Progress autosaves after every game. Real 2026 bracket: Blazers → Wolves → Thunder → Knicks.</p>
+    ${IS_IOS && !IS_STANDALONE ? '<p class="small" style="color:var(--fiesta-teal)">📲 iPhone tip: tap <b>Share → Add to Home Screen</b>, then launch from the icon — true fullscreen, no Safari bar.</p>' : ''}
+    ${contBtn}
+    <button class="go ${hasRun?'danger':''}" onclick="startIntro_()">${hasRun?'NEW PILGRIMAGE':'BEGIN THE PILGRIMAGE'}</button>
+    ${(() => {
+      const b = getBeaten();
+      if (!b.length) return '';
+      return `<p class="small" style="margin-top:14px;margin-bottom:2px">🏆 TROPHY CASE — replay a conquered series:</p>
+        <div style="display:flex;gap:8px;justify-content:center;flex-wrap:wrap">` +
+        b.sort().map(i=>`<button class="go" style="font-size:16px;padding:5px 14px" onclick="replayLevel(${i})">${LEVELS[i].short}</button>`).join('') +
+        `</div>`;
+    })()}
+  `);
+}
+window.replayLevel = function(i){
+  ac();
+  G.replayMode = true;
+  G.level = i;
+  G.gameNum=1; G.gamesWon=0; G.gamesLost=0;
+  getFace(WEMBY_FACE_ID);
+  ROSTERS[LEVELS[i].abbr].forEach(r=>getFace(r[2]));
+  startMontage(); // the croissant flies before every series
+};
+function showReplayIntro(){
+  const lv = L();
+  G.scene='intro';
+  showCard(`
+    <h3>REPLAY · ${lv.name}</h3>
+    <h2>vs ${lv.opp}</h2>
+    <p>You've beaten them before. They remember. They've been crying about it since.</p>
+    <button class="go" onclick="resumeGame()">RUN IT BACK — GAME 1</button>
+  `);
+}
+window.backToTitle = function(){
+  G.replayMode = false;
+  G.scene = 'title';
+  showTitle();
+};
+window.startIntro_ = function(){ ac(); clearSave(); G.replayMode=false; G.level=0; G.tears=0; G.absorbed=0; G.ult=0; startMontage(); };
+window.continueRun = function(){
+  const s = loadSave();
+  if (!s) return startIntro_();
+  ac();
+  G.replayMode = false;
+  G.level = Math.min(s.level||0, LEVELS.length-1);
+  G.tears = s.tears||0; G.absorbed = s.absorbed||0; G.ult = s.ult||0;
+  G.gameNum = s.gameNum||1; G.gamesWon = s.gamesWon||0; G.gamesLost = s.gamesLost||0;
+  getFace(WEMBY_FACE_ID);
+  ROSTERS[L().abbr].forEach(r=>getFace(r[2]));
+  const lv = L();
+  G.scene='intro';
+  showCard(`
+    <h3>SAVED RUN · ${lv.name}</h3>
+    <h2>vs ${lv.opp}</h2>
+    <p>Series so far: <b>SPURS ${G.gamesWon}–${G.gamesLost} ${lv.short}</b>. The tear jar (${G.tears}) is exactly where you left it.</p>
+    <button class="go" onclick="resumeGame()">RESUME — GAME ${G.gameNum}</button>
+  `);
+};
+window.resumeGame = function(){ hideCard(); startGame(); };
+
+// =====================================================================
+//  RENDERING — articulated players
+// =====================================================================
+function drawCourt(){
+  const lv = L();
+  // crowd band
+  ctx.fillStyle='#17131c'; ctx.fillRect(0,0,W,64);
+  for(let i=0;i<W/14;i++){
+    const flick = (Math.floor(G.t/30)+i)%7===0;
+    ctx.fillStyle = flick ? '#3a3146' : '#241e2e';
+    ctx.beginPath(); ctx.arc(7+i*14, 18+((i*37)%3)*13, 4.5, 0, 7); ctx.fill();
+  }
+  // sideline ad board
+  ctx.fillStyle='#0d0d12'; ctx.fillRect(0,64,W,18);
+  ctx.font='800 12px Barlow Condensed'; ctx.fillStyle='#7d7d8d'; ctx.textAlign='center';
+  const ads = ['FIESTA COLA','TEAR-AID — FOR WHEN IT STINGS','BIG SLICE $1 PIZZA','CRYBABY INSURANCE CO.','FRENCH BAKERY OF PAIN'];
+  for(let i=0;i<5;i++) ctx.fillText(ads[(i+Math.floor(G.t/600))%ads.length], W*(i+0.5)/5, 77);
+  // hardwood
+  const fy = 82;
+  const grd = ctx.createLinearGradient(0,fy,0,H);
+  grd.addColorStop(0,'#b07b46'); grd.addColorStop(.5,'#c08a50'); grd.addColorStop(1,'#a9763f');
+  ctx.fillStyle = grd; ctx.fillRect(0,fy,W,H-fy);
+  ctx.strokeStyle='rgba(0,0,0,0.07)'; ctx.lineWidth=1;
+  for(let y=fy;y<H;y+=26){ ctx.beginPath(); ctx.moveTo(0,y); ctx.lineTo(W,y); ctx.stroke(); }
+  for(let x=0;x<W;x+=120){ ctx.beginPath(); ctx.moveTo(x,fy); ctx.lineTo(x,H); ctx.stroke(); }
+  const home = (G.scene==='play'||G.scene==='between') ? isHome() : true;
+  ctx.fillStyle = lv.courtTint; ctx.fillRect(0,fy,W,H-fy);
+  if (!home){ ctx.fillRect(0,fy,W,H-fy); ctx.fillRect(0,fy,W,H-fy); } // their building, their paint job
+  // lines
+  ctx.strokeStyle='rgba(245,241,232,0.55)'; ctx.lineWidth=3;
+  ctx.beginPath(); ctx.arc(W/2,(H+fy)/2,64,0,7); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(W/2,fy); ctx.lineTo(W/2,H); ctx.stroke();
+  // our key (left)
+  ctx.strokeRect(0, (H+fy)/2-80, 140, 160);
+  ctx.beginPath(); ctx.arc(140,(H+fy)/2, 52, -Math.PI/2, Math.PI/2); ctx.stroke();
+  // their key (right, decorative)
+  ctx.strokeRect(W-140, (H+fy)/2-80, 140, 160);
+  ctx.beginPath(); ctx.arc(W-140,(H+fy)/2, 52, Math.PI/2, Math.PI*1.5); ctx.stroke();
+  // center logo — painted center circle, visible from the rafters
+  ctx.save(); ctx.translate(W/2,(H+fy)/2); ctx.rotate(-0.06);
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  // painted disc behind the mark
+  ctx.fillStyle = home ? 'rgba(12,12,16,0.55)' : lv.jersey+'99';
+  ctx.beginPath(); ctx.arc(0,0,61,0,7); ctx.fill();
+  ctx.strokeStyle = home ? 'rgba(196,206,212,0.9)' : 'rgba(255,255,255,0.85)';
+  ctx.lineWidth=3.5;
+  ctx.beginPath(); ctx.arc(0,0,61,0,7); ctx.stroke();
+  if (home){
+    ctx.font='900 50px Bangers, cursive';
+    ctx.lineWidth=5; ctx.strokeStyle='#000';
+    ctx.strokeText('SAS', 0, -4);
+    ctx.fillStyle='#C4CED4';
+    ctx.fillText('SAS', 0, -4);
+    ctx.font='800 13px Barlow Condensed'; ctx.fillStyle='rgba(255,255,255,0.85)';
+    ctx.fillText('GO SPURS GO', 0, 32);
+  } else {
+    ctx.font='900 50px Bangers, cursive';
+    ctx.lineWidth=5; ctx.strokeStyle='#000';
+    ctx.strokeText(lv.abbr, 0, -4);
+    ctx.fillStyle='#fff';
+    ctx.fillText(lv.abbr, 0, -4);
+    ctx.font='800 13px Barlow Condensed'; ctx.fillStyle='rgba(255,255,255,0.9)';
+    ctx.fillText(lv.city, 0, 32);
+  }
+  ctx.textBaseline='alphabetic';
+  ctx.restore();
+  // OUR HOOP (left)
+  drawHoop(HOOP.x, HOOP.y);
+  // vignette
+  const vg = ctx.createRadialGradient(W/2,H/2,H*0.35, W/2,H/2, H*0.95);
+  vg.addColorStop(0,'rgba(0,0,0,0)'); vg.addColorStop(1,'rgba(0,0,0,0.35)');
+  ctx.fillStyle=vg; ctx.fillRect(0,0,W,H);
+}
+function drawHoop(x,y){
+  // pole + backboard + rim, side view facing right
+  ctx.strokeStyle='#3a3a42'; ctx.lineWidth=7;
+  ctx.beginPath(); ctx.moveTo(x-26,y+60); ctx.lineTo(x-26,y-40); ctx.stroke();
+  ctx.fillStyle='rgba(255,255,255,0.85)'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
+  ctx.fillRect(x-22,y-58,8,52); ctx.strokeRect(x-22,y-58,8,52);
+  // rim
+  ctx.strokeStyle='#e84b1f'; ctx.lineWidth=4;
+  ctx.beginPath(); ctx.moveTo(x-14,y-16); ctx.lineTo(x+18,y-16); ctx.stroke();
+  // net
+  ctx.strokeStyle='rgba(255,255,255,0.8)'; ctx.lineWidth=1.5;
+  for(let i=0;i<4;i++){
+    ctx.beginPath();
+    ctx.moveTo(x-12+i*8, y-16);
+    ctx.lineTo(x-8+i*6, y+6);
+    ctx.stroke();
+  }
+}
+
+// --- articulated humanoid ---
+// p: {x,y(feet),h,skin,hair,hairColor,jersey,trim,shorts,num,pose,phase,facing,rot,expression,slim,ball:{x,y}|null,label}
+function limbSeg(x1,y1,x2,y2,width,color){
+  ctx.strokeStyle=color; ctx.lineWidth=width; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(x1,y1); ctx.lineTo(x2,y2); ctx.stroke();
+}
+function drawBall(x,y,r=7){
+  ctx.fillStyle='#e8731f'; ctx.strokeStyle='#7a3208'; ctx.lineWidth=1.4;
+  ctx.beginPath(); ctx.arc(x,y,r,0,7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(x-r,y); ctx.lineTo(x+r,y); ctx.stroke();
+  ctx.beginPath(); ctx.arc(x-r*0.9,y,r*1.15,-0.7,0.7); ctx.stroke();
+}
+function drawPlayer(p){
+  const h = p.h, f = p.facing||1;
+  const wS = h*(p.slim?0.30:0.36);        // shoulder width
+  const wH = wS*0.8;                       // hip width
+  const hipY = -h*0.46, shY = -h*0.76;
+  const headR = h*0.085;
+  const legW = h*0.085, armW = h*0.065;
+  const ph = p.phase||0;
+  const pose = p.pose||'run';
+
+  ctx.save();
+  ctx.translate(p.x, p.y);
+  if (pose==='lie'){ ctx.rotate(Math.PI/2*(p.rot>=0?1:-1)); ctx.translate(0,-6); }
+  else if (p.rot) ctx.rotate(p.rot);
+  ctx.scale(f,1);
+
+  // ----- legs -----
+  let f1x, f1y, f2x, f2y, hop=0;
+  if (pose==='run'){
+    f1x = Math.sin(ph)*h*0.17;       f1y = -Math.max(0,Math.cos(ph))*h*0.07;
+    f2x = Math.sin(ph+Math.PI)*h*0.17; f2y = -Math.max(0,Math.cos(ph+Math.PI))*h*0.07;
+  } else if (pose==='idle'){
+    f1x = -h*0.07; f1y = 0; f2x = h*0.07; f2y = 0;
+  } else if (pose==='celebrate'){
+    hop = Math.abs(Math.sin(ph*0.5))*h*0.06;
+    f1x=-h*0.09; f2x=h*0.09; f1y=f2y=0;
+  } else if (pose==='dance'){
+    if (p.danceType==='griddy'){
+      f1x = Math.sin(ph)*h*0.20;          f1y = -Math.max(0,Math.cos(ph))*h*0.16;
+      f2x = Math.sin(ph+Math.PI)*h*0.20;  f2y = -Math.max(0,Math.cos(ph+Math.PI))*h*0.16;
+    } else if (p.danceType==='shimmy'){
+      hop = Math.abs(Math.sin(ph*1.6))*h*0.05;
+      f1x=-h*0.13; f2x=h*0.13; f1y=f2y=0;
+    } else { // floss / disco: planted feet, bouncing knees
+      hop = Math.abs(Math.sin(ph))*h*0.03;
+      f1x=-h*0.10; f2x=h*0.10; f1y=f2y=0;
+    }
+  } else if (pose==='windup'){
+    f1x=-h*0.13; f2x=h*0.10; f1y=f2y=0;
+  } else if (pose==='layup'){
+    f1x=-h*0.02; f1y=-h*0.16; f2x=h*0.06; f2y=-h*0.05;
+  } else { // flail / lie
+    f1x=-h*0.16; f1y=-h*0.10; f2x=h*0.15; f2y=-h*0.06;
+  }
+  ctx.translate(0,-hop);
+  const crouch = pose==='windup' ? h*0.06 : 0;
+  // knees bend toward travel
+  for (const [fx,fy,side] of [[f1x,f1y,-1],[f2x,f2y,1]]){
+    const hx = side*wH*0.28, hy = hipY+crouch;
+    const kx = (hx+fx)/2 + h*0.05, ky = (hy+fy)/2 + h*0.02;
+    limbSeg(hx,hy,kx,ky,legW,p.skin);
+    limbSeg(kx,ky,fx,fy,legW*0.92,p.skin);
+    // shoe
+    ctx.fillStyle='#f2f2f2'; ctx.strokeStyle='#000'; ctx.lineWidth=1.2;
+    ctx.beginPath(); ctx.ellipse(fx+h*0.025, fy-2, h*0.05, h*0.024, 0, 0, 7); ctx.fill(); ctx.stroke();
+  }
+  // shorts over upper legs
+  ctx.fillStyle=p.shorts; ctx.strokeStyle='#000'; ctx.lineWidth=1.6;
+  ctx.beginPath();
+  ctx.moveTo(-wH*0.55, hipY+crouch-h*0.02);
+  ctx.lineTo(wH*0.55, hipY+crouch-h*0.02);
+  ctx.lineTo(wH*0.62, hipY+crouch+h*0.10);
+  ctx.lineTo(wH*0.18, hipY+crouch+h*0.10);
+  ctx.lineTo(0, hipY+crouch+h*0.04);
+  ctx.lineTo(-wH*0.18, hipY+crouch+h*0.10);
+  ctx.lineTo(-wH*0.62, hipY+crouch+h*0.10);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+
+  // ----- torso / jersey (tank) -----
+  ctx.fillStyle=p.jersey; ctx.strokeStyle='#000'; ctx.lineWidth=1.8;
+  ctx.beginPath();
+  ctx.moveTo(-wS*0.52, shY+crouch);
+  ctx.quadraticCurveTo(0, shY+crouch-h*0.015, wS*0.52, shY+crouch);
+  ctx.lineTo(wH*0.55, hipY+crouch);
+  ctx.lineTo(-wH*0.55, hipY+crouch);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // trim stripes
+  ctx.strokeStyle=p.trim; ctx.lineWidth=2.2;
+  ctx.beginPath(); ctx.moveTo(-wS*0.50, shY+crouch+2); ctx.lineTo(-wH*0.52, hipY+crouch-2); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(wS*0.50, shY+crouch+2); ctx.lineTo(wH*0.52, hipY+crouch-2); ctx.stroke();
+  // number
+  ctx.fillStyle=p.trim; ctx.font=`800 ${Math.max(10,h*0.12)}px Barlow Condensed`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  ctx.save(); ctx.scale(f,1); // unmirror number
+  ctx.fillText(p.num!=null?String(p.num):'', 0, (shY+hipY)/2+crouch);
+  ctx.restore();
+
+  // ----- arms -----
+  let a1, a2; // [hand x, hand y]
+  if (pose==='run'){
+    a1=[Math.sin(ph+Math.PI)*h*0.13+wS*0.3, shY+h*0.16];
+    a2=[Math.sin(ph)*h*0.13-wS*0.3, shY+h*0.16];
+  } else if (pose==='celebrate'){
+    a1=[wS*0.55, shY-h*0.16]; a2=[-wS*0.55, shY-h*0.16];
+  } else if (pose==='dance'){
+    if (p.danceType==='griddy'){
+      // fists pumping in circles, b-boy knees
+      a1=[ wS*0.5+Math.cos(ph*2)*h*0.10,        shY+h*0.06+Math.sin(ph*2)*h*0.10];
+      a2=[-wS*0.5+Math.cos(ph*2+Math.PI)*h*0.10, shY+h*0.06+Math.sin(ph*2+Math.PI)*h*0.10];
+    } else if (p.danceType==='floss'){
+      // both arms swing together hip-to-hip
+      const sw = Math.sin(ph*1.8)*h*0.30;
+      const ay2 = shY+h*0.22 - Math.abs(Math.sin(ph*1.8))*h*0.04;
+      a1=[sw+wS*0.18, ay2]; a2=[sw-wS*0.18, ay2];
+    } else if (p.danceType==='disco'){
+      // one finger to the sky, one hand on hip. Saturday night.
+      const k = Math.max(0, Math.sin(ph*1.5));
+      a1=[wS*(0.25+0.55*k), shY + (1-k)*h*0.28 - k*h*0.38];
+      a2=[-wS*0.4, hipY+crouch-2];
+    } else { // shimmy: wingspan deployed, shoulders rolling
+      a1=[ wS*1.05, shY+h*0.02+Math.sin(ph*3)*5];
+      a2=[-wS*1.05, shY+h*0.02-Math.sin(ph*3)*5];
+    }
+  } else if (pose==='layup'){
+    a1=[wS*0.4, shY-h*0.22]; a2=[-wS*0.35, shY+h*0.1];
+  } else if (pose==='windup'){
+    a1=[wS*0.7, shY+h*0.05]; a2=[-wS*0.7, shY+h*0.05];
+  } else if (pose==='flail'){
+    a1=[wS*0.65, shY-h*0.1]; a2=[-wS*0.6, shY-h*0.14];
+  } else if (pose==='lie'){
+    a1=[wS*0.5, shY+h*0.02]; a2=[-wS*0.5, shY+h*0.02];
+  } else { // idle / dribble
+    a1=[wS*0.42, shY+h*0.2]; a2=[-wS*0.42, shY+h*0.2];
+  }
+  // long-limbed bodies (Wemby): arms hang low and loose when running/standing, not T-posed
+  if ((p.armLen||1) > 1 && (pose==='run' || pose==='idle')){
+    const dangle = shY + crouch + h*0.36;
+    a1 = [a1[0]*0.7, dangle + (pose==='run' ? Math.cos(ph)*h*0.05 : 0)];
+    a2 = [a2[0]*0.7, dangle + (pose==='run' ? -Math.cos(ph)*h*0.05 : 0)];
+  }
+  // dribble override: lead hand follows ball
+  if (p.ballLocal){
+    a1 = [p.ballLocal[0], p.ballLocal[1]-8];
+  }
+  // swipe override: the lead arm itself extends along the aim direction
+  if (p.pokeExt && p.pokeDir!==undefined){
+    const pdx = Math.cos(p.pokeDir)*f, pdy = Math.sin(p.pokeDir)*0.85;
+    const reach = h*(0.16 + 0.42*p.pokeExt); // ~matches the 140px gameplay reach after armLen stretch
+    a1 = [wS*0.48*(pdx>=0?1:-1) + pdx*reach, shY+crouch+h*0.015 + pdy*reach];
+  }
+  const armStretch = p.armLen||1;
+  for (const [hx0,hy0a,side] of [[a1[0],a1[1],1],[a2[0],a2[1],-1]]){
+    const sx = side*wS*0.48, sy = shY+crouch+h*0.015;
+    const hx = sx + (hx0-sx)*armStretch, hy = sy + (hy0a-sy)*armStretch;
+    const ex = (sx+hx)/2 + side*h*0.02, ey = (sy+hy)/2 + h*0.03;
+    limbSeg(sx,sy,ex,ey,armW,p.skin);
+    limbSeg(ex,ey,hx,hy,armW*0.9,p.skin);
+  }
+  // ball
+  if (p.ballLocal) drawBall(p.ballLocal[0], p.ballLocal[1], h*0.075);
+  if (pose==='layup' && p.ballUp) drawBall(a1[0]+h*0.02, a1[1]-h*0.07, h*0.075);
+
+  // ----- head -----
+  const hy0 = shY+crouch-headR*1.25;
+  // photo head (real player face from NBA CDN), bobblehead-sized for comedy
+  const img = (p.face && p.face.ok && p.face.complete) ? p.face : null;
+  if (img){
+    const R = Math.max(headR*1.7, 22) * (p.headScale||1); // bobblehead floor so every face is recognizable
+    limbSeg(0, shY+crouch, 0, hy0+headR*0.5, headR*0.6, p.skin); // neck
+    ctx.save();
+    ctx.translate(0, hy0 - headR*0.45);
+    ctx.scale(f,1); // un-mirror so the face is never flipped
+    ctx.save();
+    ctx.beginPath(); ctx.arc(0,0,R,0,7); ctx.clip();
+    const iw=img.naturalWidth, ih=img.naturalHeight;
+    // tight face crop — stop before the photo's jersey/shoulders sneak in
+    const s = Math.min(iw,ih)*0.60, sx=(iw-s)/2, sy=ih*0.04;
+    ctx.drawImage(img, sx, sy, s, s, -R, -R, R*2, R*2);
+    ctx.restore();
+    if (p.expression==='cry'){
+      // cartoon anguish over a professional headshot — cinema
+      ctx.strokeStyle='#6fd6ff'; ctx.lineWidth=3.2; ctx.lineCap='round';
+      ctx.beginPath(); ctx.moveTo(-R*0.38, R*0.02); ctx.quadraticCurveTo(-R*0.55, R*0.45, -R*0.42, R*0.85); ctx.stroke();
+      ctx.beginPath(); ctx.moveTo(R*0.38, R*0.02); ctx.quadraticCurveTo(R*0.55, R*0.45, R*0.42, R*0.85); ctx.stroke();
+      ctx.fillStyle='rgba(90,26,26,0.85)';
+      ctx.beginPath(); ctx.ellipse(0, R*0.55, R*0.2, R*0.27, 0, 0, 7); ctx.fill();
+      ctx.strokeStyle='rgba(255,255,255,0.9)'; ctx.lineWidth=1.5;
+      ctx.beginPath(); ctx.ellipse(0, R*0.55, R*0.2, R*0.27, 0, 0, 7); ctx.stroke();
+    } else if (p.expression==='smug'){
+      ctx.fillStyle='rgba(255,255,255,0.92)'; ctx.strokeStyle='#000'; ctx.lineWidth=1.2;
+      ctx.beginPath(); ctx.ellipse(R*0.62, -R*0.62, R*0.34, R*0.2, -0.5, 0, 7); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#000'; ctx.font=`800 ${Math.max(7,R*0.22)}px Barlow Condensed`; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText('hehe', R*0.62, -R*0.62);
+      ctx.textBaseline='alphabetic';
+    }
+    ctx.restore();
+    ctx.restore(); // matches the outer body save
+    return;
+  }
+  ctx.fillStyle=p.skin;
+  ctx.beginPath(); ctx.arc(0,hy0,headR,0,7); ctx.fill();
+  ctx.strokeStyle='#000'; ctx.lineWidth=1.5; ctx.stroke();
+  // neck
+  limbSeg(0, shY+crouch, 0, hy0+headR*0.7, headR*0.6, p.skin);
+  ctx.beginPath(); ctx.arc(0,hy0,headR,0,7); ctx.fillStyle=p.skin; ctx.fill(); ctx.stroke();
+  // hair
+  ctx.fillStyle = p.hairColor||'#15100c';
+  if (p.hair==='curls'){
+    for (const [cx,cy,cr] of [[-headR*0.55,-headR*0.75,0.55],[0,-headR*0.95,0.62],[headR*0.55,-headR*0.75,0.55],[-headR*0.25,-headR*1.15,0.45],[headR*0.25,-headR*1.15,0.45]]){
+      ctx.beginPath(); ctx.arc(cx, hy0+cy, headR*cr, 0, 7); ctx.fill();
+    }
+  } else if (p.hair==='buzz'){
+    ctx.beginPath(); ctx.arc(0,hy0,headR*1.02,Math.PI*1.05,Math.PI*1.95); ctx.lineTo(headR*0.95,hy0-headR*0.25); ctx.closePath(); ctx.fill();
+  } else if (p.hair==='bun'){
+    ctx.beginPath(); ctx.arc(0,hy0,headR*1.02,Math.PI*1.05,Math.PI*1.95); ctx.closePath(); ctx.fill();
+    ctx.beginPath(); ctx.arc(0,hy0-headR*1.25,headR*0.4,0,7); ctx.fill();
+  } else if (p.hair==='band'){
+    ctx.beginPath(); ctx.arc(0,hy0,headR*1.02,Math.PI*1.05,Math.PI*1.95); ctx.closePath(); ctx.fill();
+    ctx.fillStyle='#fff'; ctx.fillRect(-headR*0.95,hy0-headR*0.55,headR*1.9,headR*0.3);
+  } else if (p.hair==='flat'){
+    ctx.fillRect(-headR*0.85,hy0-headR*1.25,headR*1.7,headR*0.55);
+  }
+  // face (drawn facing +x after mirror)
+  const ex = headR*0.38, ey = hy0-headR*0.1;
+  if (p.expression==='cry'){
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.moveTo(ex-3,ey-3); ctx.lineTo(ex+2,ey); ctx.moveTo(ex-3,ey+3); ctx.lineTo(ex+2,ey); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-ex+3,ey-3); ctx.lineTo(-ex-2,ey); ctx.moveTo(-ex+3,ey+3); ctx.lineTo(-ex-2,ey); ctx.stroke();
+    // wail mouth
+    ctx.fillStyle='#5a1a1a';
+    ctx.beginPath(); ctx.ellipse(headR*0.1, hy0+headR*0.45, headR*0.28, headR*0.36, 0, 0, 7); ctx.fill();
+    // tear streams
+    ctx.strokeStyle='#6fd6ff'; ctx.lineWidth=2.2;
+    ctx.beginPath(); ctx.moveTo(ex,ey+2); ctx.quadraticCurveTo(ex+5,ey+9,ex+3,ey+15); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-ex,ey+2); ctx.quadraticCurveTo(-ex-5,ey+9,-ex-3,ey+15); ctx.stroke();
+  } else if (p.expression==='smug'){
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.arc(ex,ey,1.6,0,7); ctx.arc(-ex,ey,1.6,0,7); ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+    ctx.beginPath(); ctx.arc(headR*0.05,hy0+headR*0.3,headR*0.3,0.2,Math.PI-0.4); ctx.stroke();
+  } else { // game face
+    ctx.fillStyle='#000';
+    ctx.beginPath(); ctx.arc(ex,ey,1.7,0,7); ctx.arc(-ex,ey,1.7,0,7); ctx.fill();
+    ctx.strokeStyle='#000'; ctx.lineWidth=1.4;
+    ctx.beginPath(); ctx.moveTo(ex-3.5,ey-4.5); ctx.lineTo(ex+2.5,ey-2.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(-ex+3.5,ey-4.5); ctx.lineTo(-ex-2.5,ey-2.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(headR*-0.15,hy0+headR*0.45); ctx.lineTo(headR*0.35,hy0+headR*0.45); ctx.stroke();
+  }
+  ctx.restore();
+}
+
+// high-contrast name pill — readable from the cheap seats
+function courtLabel(txt, x, y, opts={}){
+  const size = opts.size||18, color = opts.color||'#fff';
+  ctx.font = `800 ${size}px Barlow Condensed`;
+  ctx.textAlign='center'; ctx.textBaseline='middle';
+  const w = ctx.measureText(txt).width + 16;
+  const hh = size + 9;
+  ctx.fillStyle = opts.bg||'rgba(8,8,12,0.8)';
+  ctx.beginPath();
+  ctx.roundRect ? ctx.roundRect(x-w/2, y-hh/2, w, hh, hh/2) : ctx.rect(x-w/2, y-hh/2, w, hh);
+  ctx.fill();
+  ctx.strokeStyle='#000'; ctx.lineWidth=2; ctx.stroke();
+  ctx.fillStyle = color;
+  ctx.fillText(txt, x, y);
+  ctx.textBaseline='alphabetic';
+}
+function drawWemby(){
+  const h = 158;
+  const bob = Math.sin(wemby.bob)*2.5;
+  ctx.fillStyle='rgba(0,0,0,0.3)';
+  ctx.beginPath(); ctx.ellipse(wemby.x, wemby.y+4, 32, 9, 0, 0, 7); ctx.fill();
+  ctx.save();
+  ctx.translate(0, bob);
+  if (G.ult>=100){
+    ctx.save();
+    ctx.globalAlpha = 0.22+Math.sin(G.t*0.15)*0.1;
+    const ag = ctx.createRadialGradient(wemby.x, wemby.y-70, 10, wemby.x, wemby.y-70, 120);
+    ag.addColorStop(0,'rgba(0,178,169,0.8)'); ag.addColorStop(1,'rgba(0,178,169,0)');
+    ctx.fillStyle=ag;
+    ctx.beginPath(); ctx.arc(wemby.x,wemby.y-70,120,0,7); ctx.fill();
+    ctx.restore();
+  }
+  const moving = !!wemby.moving; // set by update() — keyboard AND finger-drag both count
+  const dancing = G.scene==='between' && G.dance;
+  drawPlayer({
+    x:wemby.x, y:wemby.y, h, slim:true,
+    skin:'#7a4a26', hair:'curls', hairColor:'#101010',
+    jersey:'#0c0c10', trim:'#C4CED4', shorts:'#0c0c10',
+    num:1,
+    pose: dancing ? 'dance' : (moving?'run':'idle'),
+    danceType: dancing ? G.dance.type : null,
+    phase: dancing ? G.dance.t*0.12 : wemby.bob*1.4,
+    rot: dancing && (G.dance.type==='floss'||G.dance.type==='shimmy') ? Math.sin(G.dance.t*0.2)*0.06 : 0,
+    facing:wemby.facing,
+    expression: dancing ? 'smug' : 'game',
+    face:getFace(WEMBY_FACE_ID), headScale:1.45, armLen:1.5,
+    // his actual arm swings toward the aim — no mystery third limb
+    pokeDir: wemby.pokeAngle,
+    pokeExt: wemby.pokeAnim>0 ? Math.sin((12-wemby.pokeAnim)/12*Math.PI) : 0,
+  });
+  if (dancing) courtLabel(G.dance.name+' 💃', wemby.x, wemby.y - h - 46, {color:'#EF8633', size:18});
+  courtLabel("WEMBANYAMA · 7'5\"", wemby.x, wemby.y - h - 20, {color:'#C4CED4', size:19});
+  ctx.restore();
+}
+
+function drawRef(){
+  const x=ref.x, y=ref.y, h=64;
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(x,y+3,15,5,0,0,7); ctx.fill();
+  ctx.save();
+  ctx.translate(x,y);
+  ctx.strokeStyle='#222'; ctx.lineWidth=5.5; ctx.lineCap='round';
+  ctx.beginPath(); ctx.moveTo(-4,-h*0.40); ctx.lineTo(-7,0); ctx.stroke();
+  ctx.beginPath(); ctx.moveTo(4,-h*0.40); ctx.lineTo(7,0); ctx.stroke();
+  ctx.fillStyle='#fff'; ctx.strokeStyle='#000'; ctx.lineWidth=1.6;
+  ctx.beginPath();
+  ctx.moveTo(-11,-h*0.78); ctx.lineTo(11,-h*0.78); ctx.lineTo(9,-h*0.40); ctx.lineTo(-9,-h*0.40);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  ctx.fillStyle='#000';
+  for(let i=0;i<3;i++) ctx.fillRect(-9+2+i*6.5, -h*0.78, 3.2, h*0.38);
+  ctx.fillStyle='#d9a06a'; ctx.beginPath(); ctx.arc(0,-h*0.78-7,7,0,7); ctx.fill(); ctx.stroke();
+  // whistle
+  ctx.fillStyle='#ffd23f'; ctx.beginPath(); ctx.arc(4,-h*0.74,2.6,0,7); ctx.fill();
+  if (ref.point>0){
+    // dramatically pointing at Wemby (foul call)
+    const ang = Math.atan2((wemby.y-60)-y, wemby.x-x);
+    ctx.strokeStyle='#d9a06a'; ctx.lineWidth=4.5;
+    ctx.beginPath(); ctx.moveTo(0,-h*0.68);
+    ctx.lineTo(Math.cos(ang)*24, -h*0.68+Math.sin(ang)*24); ctx.stroke();
+    courtLabel('FOUL! №'+G.fouls, 0, -h-20, {color:'#ff5470', size:16});
+  } else if (ref.shrug>0){
+    ctx.strokeStyle='#d9a06a'; ctx.lineWidth=4.5;
+    ctx.beginPath(); ctx.moveTo(-11,-h*0.7); ctx.lineTo(-21,-h*0.84); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(11,-h*0.7); ctx.lineTo(21,-h*0.84); ctx.stroke();
+    courtLabel('PLAY ON 🤷', 0, -h-20, {size:15});
+  } else {
+    ctx.strokeStyle='#d9a06a'; ctx.lineWidth=4.5;
+    ctx.beginPath(); ctx.moveTo(-11,-h*0.7); ctx.lineTo(-15,-h*0.5); ctx.stroke();
+    ctx.beginPath(); ctx.moveTo(11,-h*0.7); ctx.lineTo(15,-h*0.5); ctx.stroke();
+  }
+  if (ref.whistle>0){
+    courtLabel('TWEEET! TECHNICAL: EXCESSIVE TEARS', 0, -h-42, {color:'#ffd23f', size:14});
+  }
+  if (ref.persona){
+    courtLabel('REF: '+ref.persona.name, 0, 18, {color:'#ffd23f', size:15});
+  }
+  ctx.restore();
+}
+
+function drawOpponent(o){
+  const lv = L();
+  ctx.fillStyle='rgba(0,0,0,0.25)';
+  ctx.beginPath(); ctx.ellipse(o.x, o.y+3, 17, 6, 0, 0, 7); ctx.fill();
+  const base = {
+    x:o.x, y:o.y, h:o.h, skin:o.skin, hair:o.hair, hairColor:o.hairColor,
+    jersey:lv.jersey, trim:'#ffffff', shorts:lv.shorts, num:o.num,
+    facing:o.facing, phase:o.legPhase, expression:o.expression, face:o.face, headScale:o.headScale,
+  };
+  if (o.state==='flopping'){
+    drawPlayer({...base, pose:'flail', rot:o.rot, expression:'cry'});
+  } else if (o.state==='crying' || o.state==='selfflop' || o.state==='ftdraw'){
+    drawPlayer({...base, pose:'lie', rot:o.vrot||1, expression:'cry'});
+    if (Math.floor(o.timer/40)%2===0){
+      ctx.fillStyle='rgba(255,255,255,0.95)'; ctx.strokeStyle='#000'; ctx.lineWidth=1.5;
+      const bx=o.x+16, by=o.y-56;
+      ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx,by,66,20,6) : ctx.rect(bx,by,66,20); ctx.fill(); ctx.stroke();
+      ctx.fillStyle='#000'; ctx.font='800 11.5px Barlow Condensed'; ctx.textAlign='center';
+      const line = o.state==='ftdraw' ? 'AND ONE!!' : (o.state==='selfflop' ? 'HE FOULED ME!!' : (o.timer%80<40?'WAAAAH':'MY AGENT!!'));
+      ctx.fillText(line, bx+33, by+14);
+    }
+  } else if (o.state==='grapple'){
+    drawPlayer({...base, pose:'windup', expression:'game'});
+    if (o.weaponT>0){
+      ctx.save();
+      ctx.translate(o.x - o.grabSide*10, o.y - o.h*1.05);
+      ctx.rotate(-o.grabSide * (1.2 - (o.weaponT/22)*2.0));
+      ctx.font='28px serif'; ctx.textAlign='center';
+      ctx.fillText('🪑', 0, 0);
+      ctx.restore();
+    }
+    courtLabel(o.name+' — HOLDING HIS ARM', o.x, o.y - o.h - 18, {color:'#EF8633', size:15});
+  } else if (o.state==='celebrate'){
+    drawPlayer({...base, pose:'celebrate', expression:'smug'});
+    courtLabel('IN YOUR FACE (from 40ft away)', o.x, o.y - o.h - 18, {size:14});
+  } else if (o.state==='layup'){
+    drawPlayer({...base, pose:'layup', ballUp:true, expression:'game'});
+  } else if (o.state==='windup'){
+    // flashing warning
+    if (Math.floor(o.timer/5)%2===0){
+      ctx.strokeStyle='#ff5470'; ctx.lineWidth=3;
+      ctx.beginPath(); ctx.arc(o.x, o.y-o.h*0.45, o.h*0.62, 0, 7); ctx.stroke();
+    }
+    drawPlayer({...base, pose:'windup', expression:'smug'});
+    courtLabel('🎬 '+o.name+' — PREPARING PERFORMANCE', o.x, o.y - o.h - 18, {color:'#ff5470', size:15});
+  } else {
+    // drive / charge / lurk / bounce / exit
+    const dribble = o.role==='scorer' && (o.state==='drive'||o.state==='bounce');
+    let ballLocal = null;
+    if (dribble){
+      const bx = o.h*0.34, by = -Math.abs(Math.sin(o.ballPhase))* o.h*0.32 - 6;
+      ballLocal = [bx, by];
+    }
+    drawPlayer({...base, pose:'run', ballLocal, expression: o.role==='flopper'?'smug':'game'});
+    const tag = o.role==='flopper' ? o.name+' 🎭' : o.name;
+    courtLabel(tag, o.x, o.y - o.h - 18, {size:17});
+    if (G.distract>0){
+      ctx.font='20px serif'; ctx.textAlign='center';
+      ctx.fillText('😍', o.x + 18, o.y - o.h - 34);
+    }
+  }
+}
+
+function drawParticles(){
+  for (const p of particles){
+    ctx.globalAlpha = Math.max(0, p.life/p.max);
+    if (p.kind==='tear'){
+      ctx.fillStyle='#6fd6ff';
+      ctx.beginPath();
+      ctx.moveTo(p.x, p.y-p.size);
+      ctx.quadraticCurveTo(p.x+p.size, p.y, p.x, p.y+p.size*0.8);
+      ctx.quadraticCurveTo(p.x-p.size, p.y, p.x, p.y-p.size);
+      ctx.fill();
+    } else {
+      ctx.fillStyle = ['#E13A8E','#EF8633','#00B2A9','#ffd23f'][Math.floor(p.x+p.y)%4];
+      ctx.fillRect(p.x-p.size/2, p.y-p.size/2, p.size, p.size);
+    }
+  }
+  ctx.globalAlpha=1;
+}
+function drawFloaters(){
+  for (const f of floaters){
+    ctx.globalAlpha = Math.min(1, f.life/30);
+    ctx.font=`900 ${f.size}px Bangers, cursive`;
+    ctx.textAlign='center';
+    ctx.lineWidth=4; ctx.strokeStyle='#000';
+    ctx.strokeText(f.txt, f.x, f.y);
+    ctx.fillStyle=f.color;
+    ctx.fillText(f.txt, f.x, f.y);
+  }
+  ctx.globalAlpha=1;
+}
+
+// cartoon decolletage — strictly PG-13, devastating to opposing defenses
+function drawMelonsIcon(x, y, s){
+  ctx.save();
+  ctx.translate(x, y);
+  ctx.scale(s, s);
+  // the mounds
+  ctx.fillStyle='#e8b88a'; ctx.strokeStyle='#a8794c'; ctx.lineWidth=1.6;
+  ctx.beginPath(); ctx.arc(-8, 0, 11, 0, 7); ctx.fill(); ctx.stroke();
+  ctx.beginPath(); ctx.arc(8, 0, 11, 0, 7); ctx.fill(); ctx.stroke();
+  // cleavage line
+  ctx.strokeStyle='#8a5f38'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.moveTo(0,-3); ctx.quadraticCurveTo(-1.5, 3, 0, 8); ctx.stroke();
+  // scoop-neck top covering the lower half
+  ctx.fillStyle='#E13A8E'; ctx.strokeStyle='#8d1f56'; ctx.lineWidth=1.6;
+  ctx.beginPath();
+  ctx.moveTo(-20, 2);
+  ctx.quadraticCurveTo(-10, 13, 0, 7);
+  ctx.quadraticCurveTo(10, 13, 20, 2);
+  ctx.lineTo(20, 16); ctx.lineTo(-20, 16);
+  ctx.closePath(); ctx.fill(); ctx.stroke();
+  // a little sparkle, for taste
+  ctx.fillStyle='rgba(255,255,255,0.85)';
+  ctx.beginPath(); ctx.arc(-11,-5,1.6,0,7); ctx.fill();
+  ctx.restore();
+}
+function drawPowerups(){
+  for (const p of powerups){
+    const pulse = 1 + Math.sin(G.t*0.12)*0.12;
+    const fade = p.life < 120 ? (Math.floor(G.t/8)%2===0 ? 0.35 : 1) : 1; // blink before despawn
+    ctx.globalAlpha = fade*0.25;
+    ctx.fillStyle = p.def.color;
+    ctx.beginPath(); ctx.arc(p.x, p.y, 26*pulse, 0, 7); ctx.fill();
+    ctx.globalAlpha = fade;
+    ctx.strokeStyle = p.def.color; ctx.lineWidth = 3;
+    if (p.def.hazard) ctx.setLineDash([6,5]); // hazards wear caution tape. heed it or don't.
+    ctx.beginPath(); ctx.arc(p.x, p.y, 26*pulse, 0, 7); ctx.stroke();
+    ctx.setLineDash([]);
+    if (p.def.key==='melons'){
+      drawMelonsIcon(p.x, p.y, 0.85*pulse);
+    } else {
+      ctx.font='24px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(p.def.emoji, p.x, p.y);
+      ctx.textBaseline='alphabetic';
+    }
+    ctx.font='900 13px Barlow Condensed';
+    ctx.lineWidth=3; ctx.strokeStyle='#000'; ctx.strokeText(p.def.label, p.x, p.y+44);
+    ctx.fillStyle='#fff'; ctx.fillText(p.def.label, p.x, p.y+44);
+    ctx.globalAlpha = 1;
+  }
+}
+function drawFlash(){
+  if (!G.flash) return;
+  const fl = G.flash, a = Math.min(1, fl.timer/20);
+  ctx.save();
+  ctx.globalAlpha = a*0.6;
+  ctx.fillStyle='rgba(6,6,12,0.8)'; ctx.fillRect(0,0,W,H);
+  const cx=W/2, cy=H*0.36, R=66;
+  ctx.globalAlpha = a;
+  // one face — or two for duo lineups like French Vanilla (Wemby + Kornet)
+  const ids = [fl.def.faceId, fl.def.faceId2].filter(Boolean);
+  const offs = ids.length===2 ? [-R*0.85, R*0.85] : [0];
+  ids.forEach((id, i) => {
+    const fx = cx + offs[i];
+    const img = faceCache[id];
+    ctx.strokeStyle=fl.def.color; ctx.lineWidth=6;
+    ctx.beginPath(); ctx.arc(fx,cy,R+6,0,7); ctx.stroke();
+    if (img && img.ok){
+      ctx.save(); ctx.beginPath(); ctx.arc(fx,cy,R,0,7); ctx.clip();
+      const iw=img.naturalWidth, ih=img.naturalHeight;
+      const s=Math.min(iw,ih)*0.60, sx=(iw-s)/2, sy=ih*0.04;
+      ctx.drawImage(img,sx,sy,s,s,fx-R,cy-R,R*2,R*2);
+      ctx.restore();
+    } else if (fl.def.key==='melons'){
+      drawMelonsIcon(fx, cy, 2.6);
+    } else {
+      ctx.font='64px serif'; ctx.textAlign='center'; ctx.textBaseline='middle';
+      ctx.fillText(fl.def.emoji, fx, cy); ctx.textBaseline='alphabetic';
+    }
+  });
+  ctx.font='900 42px Bangers, cursive'; ctx.textAlign='center';
+  ctx.lineWidth=6; ctx.strokeStyle='#000';
+  ctx.strokeText(fl.def.label, cx, cy+R+50);
+  ctx.fillStyle=fl.def.color; ctx.fillText(fl.def.label, cx, cy+R+50);
+  ctx.font='800 16px Barlow Condensed'; ctx.fillStyle='#ddd';
+  ctx.fillText(fl.def.sub, cx, cy+R+74);
+  ctx.restore();
+}
+function drawScoreboard(){
+  const lv = L();
+  const bw = 380, bx = W/2-bw/2, by = 8;
+  ctx.fillStyle='rgba(8,8,12,0.88)'; ctx.strokeStyle='#000'; ctx.lineWidth=2;
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(bx,by,bw,46,8) : ctx.rect(bx,by,bw,46); ctx.fill(); ctx.stroke();
+  ctx.textBaseline='alphabetic';
+  // teams + scores
+  ctx.font='900 24px Bangers, cursive'; ctx.textAlign='center';
+  ctx.fillStyle='#C4CED4'; ctx.fillText('SAS', bx+46, by+24);
+  ctx.fillStyle='#fff'; ctx.fillText(String(G.scoreUs), bx+100, by+26);
+  ctx.fillStyle='#555'; ctx.fillText('—', bx+bw/2, by+26);
+  ctx.fillStyle='#fff'; ctx.fillText(String(G.scoreThem), bx+bw-100, by+26);
+  ctx.fillStyle=lv.jersey; ctx.fillText(lv.abbr, bx+bw-46, by+24);
+  // clock + game + fouls
+  const secs = Math.max(0, Math.ceil(G.clock/60));
+  ctx.font='800 12px Barlow Condensed';
+  ctx.fillStyle = secs<=10 ? '#ff5470' : '#9a9aa8';
+  const venue = isHome() ? '🏠 SAN ANTONIO' : '✈️ @ '+lv.city;
+  ctx.fillText(`GAME ${G.gameNum} · ${Math.floor(secs/60)}:${String(secs%60).padStart(2,'0')} · ${venue}`, bx+bw/2+24, by+42);
+  // foul dots
+  ctx.textAlign='left';
+  ctx.font='800 11px Barlow Condensed'; ctx.fillStyle='#9a9aa8';
+  ctx.fillText('FOULS', bx+10, by+42);
+  for(let i=0;i<6;i++){
+    ctx.fillStyle = i<G.fouls ? (G.fouls>=4?'#ff5470':'#EF8633') : '#33333d';
+    ctx.beginPath(); ctx.arc(bx+50+i*11, by+38, 4, 0, 7); ctx.fill();
+  }
+  // aura bar bottom-left
+  const abw=190, abh=13, ax=12, ay=H-24;
+  ctx.fillStyle='rgba(0,0,0,0.55)';
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(ax-3,ay-3,abw+6,abh+6,7) : ctx.rect(ax-3,ay-3,abw+6,abh+6); ctx.fill();
+  ctx.fillStyle='#26262f';
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(ax,ay,abw,abh,5) : ctx.rect(ax,ay,abw,abh); ctx.fill();
+  const g=ctx.createLinearGradient(ax,0,ax+abw,0);
+  g.addColorStop(0,'#00B2A9'); g.addColorStop(1,'#E13A8E');
+  ctx.fillStyle=g;
+  ctx.beginPath(); ctx.roundRect ? ctx.roundRect(ax,ay,abw*(G.ult/100),abh,5) : ctx.rect(ax,ay,abw*(G.ult/100),abh); ctx.fill();
+  ctx.fillStyle='#fff'; ctx.font='800 11.5px Barlow Condensed'; ctx.textAlign='left';
+  ctx.fillText(G.ult>=100 ? 'ALIEN AURA READY — PRESS E' : 'ALIEN AURA', ax+6, ay+10.5);
+}
+
+// ---------- PIPS ----------
+function renderPips(){
+  seriesEl.innerHTML='';
+  for(let i=0;i<7;i++){
+    const p=document.createElement('div');
+    p.className='pip';
+    if (i < G.gamesWon){ p.classList.add('won'); p.textContent='W'; }
+    else if (i < G.gamesWon+G.gamesLost){ p.classList.add('lost'); p.textContent='L'; }
+    seriesEl.appendChild(p);
+  }
+}
+
+// ---------- UPDATE ----------
+function update(){
+  G.t++;
+  HOOP.y = (H+82)/2;
+  const slow = G.slowmo>0 ? 0.35 : 1;
+  if (G.slowmo>0) G.slowmo--;
+  if (G.shake>0) G.shake *= 0.88;
+
+  if (G.scene==='between'){
+    G.transition--;
+    if (G.dance){
+      G.dance.t++;
+      for (const o of opponents){
+        if (o.state==='crying'){
+          o.timer++;
+          if (o.cryEmit++ % 9 === 0) burst(o.x+10, o.y-20, 1, 'tear');
+        }
+      }
+    }
+    for (const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=p.g; p.life--; }
+    particles = particles.filter(p=>p.life>0);
+    for (const f of floaters){ f.y+=f.vy; f.life--; }
+    floaters = floaters.filter(f=>f.life>0);
+    if (G.transition<=0) afterTransition();
+    return;
+  }
+  if (G.scene==='montage'){
+    G.montage.t++;
+    if (G.montage.t > 330){
+      if (G.replayMode) showReplayIntro();
+      else startIntro();
+    }
+    return;
+  }
+  if (G.scene!=='play') return;
+  if (G.paused) return;
+
+  // clock
+  G.clock -= slow;
+  if (G.clock<=0){ endGame('buzzer'); return; }
+
+  // wemby movement
+  let dx=0, dy=0;
+  if (keys['a']||keys['arrowleft']) dx-=1;
+  if (keys['d']||keys['arrowright']) dx+=1;
+  if (keys['w']||keys['arrowup']) dy-=1;
+  if (keys['s']||keys['arrowdown']) dy+=1;
+  if (G.wembyStun>0){ dx=0; dy=0; } // rib cage check: briefly rattled
+  wemby.moving = false;
+  const held = opponents.filter(o=>o.state==='grapple').length;
+  const drag = 1/(1+0.45*held); // arm-holders slow the big man down
+  const sugar = (G.churro>0 ? 1.45 : 1) * (G.swipa>0 ? 1.5 : 1); // churro velocity × fox speed
+  if (dx||dy){
+    const m=Math.hypot(dx,dy);
+    wemby.x += dx/m*wemby.speed*slow*drag*sugar;
+    wemby.y += dy/m*wemby.speed*slow*drag*sugar;
+    wemby.facing = dx<0?-1:(dx>0?1:wemby.facing);
+    wemby.dirAngle = Math.atan2(dy,dx);
+    wemby.bob += 0.25;
+    wemby.moving = true;
+  } else if (G.wembyStun<=0 && touch.active && (touch.moved || performance.now()-touch.t0 > 150)){
+    // fluid finger-follow: exponential chase toward the fingertip, capped at sprint speed —
+    // ramps up smoothly when far, glides to a stop as he arrives. No deadzone stutter.
+    const tx = touch.x - wemby.x, ty = touch.y - wemby.y, td = Math.hypot(tx,ty);
+    if (td > 2){
+      const maxStep = wemby.speed*1.2*slow*drag*sugar;
+      const step = Math.min(maxStep, td*0.18);
+      wemby.x += tx/td*step;
+      wemby.y += ty/td*step;
+      wemby.facing = tx<0?-1:(tx>0?1:wemby.facing);
+      wemby.dirAngle = Math.atan2(ty,tx);
+      wemby.bob += 0.10 + 0.18*(step/maxStep); // legs pump with actual pace
+      wemby.moving = step > 0.45;
+    }
+  }
+  wemby.x = Math.max(40, Math.min(W-40, wemby.x));
+  wemby.y = Math.max(150, Math.min(H-20, wemby.y));
+  if (wemby.pokeAnim>0) wemby.pokeAnim--;
+  if (G.pokeCooldown>0) G.pokeCooldown--;
+
+  if (G.comboTimer>0) G.comboTimer--;
+  else if (G.combo>1) G.combo=1;
+
+  // ref wanders
+  ref.x += ref.vx; ref.y += ref.vy;
+  if (ref.x<80||ref.x>W-80) ref.vx*=-1;
+  if (ref.y<160||ref.y>H-60) ref.vy*=-1;
+  if (Math.random()<0.005){ ref.vx=(Math.random()-0.5)*1.4; ref.vy=(Math.random()-0.5)*1.0; }
+  if (ref.shrug>0) ref.shrug--;
+  if (ref.whistle>0) ref.whistle--;
+  if (ref.point>0) ref.point--;
+  // vendetta whistle: this crew calls what it feels
+  if (ref.persona && Math.random() < ref.persona.quirk/(L().gameSecs*60)){
+    if (phantomFoul()) return;
+  }
+
+  // spawns
+  const lv = L();
+  timers.scorer -= slow; timers.enforcer -= slow; timers.flopper -= slow;
+  const spawnMod = (G.rallyOn ? 0.55 : 1) * (isHome() ? 1 : 0.88); // rallies and road games come faster
+  if (timers.scorer<=0){ spawnRole('scorer', lv.scorerCap + (G.rallyOn?1:0)); timers.scorer = lv.scorerEvery*60*(0.75+Math.random()*0.5)*spawnMod; }
+  if (timers.enforcer<=0){ spawnRole('enforcer', 3); timers.enforcer = lv.enforcerEvery*60*(0.75+Math.random()*0.5)*spawnMod; }
+  if (timers.flopper<=0){ spawnRole('flopper', lv.flopperCap); timers.flopper = lv.flopperEvery*60*(0.8+Math.random()*0.4)*spawnMod; }
+  timers.power -= slow;
+  if (timers.power<=0){ spawnPowerup(); timers.power = (5+Math.random()*7)*60; }
+
+  // power-ups: tick lifetime, check pickup
+  for (const p of powerups){
+    p.life--;
+    if (Math.hypot(wemby.x-p.x, (wemby.y-10)-p.y) < 44){ applyPowerup(p); p.life = 0; }
+  }
+  powerups = powerups.filter(p=>p.life>0);
+  if (G.freeze>0) G.freeze--;
+  if (G.grace>0) G.grace--;
+  if (G.distract>0) G.distract--;
+  if (G.churro>0) G.churro--;
+  if (G.swipa>0) G.swipa--;
+  if (G.wembyStun>0) G.wembyStun--;
+  if (G.flash && --G.flash.timer<=0) G.flash = null;
+  // rubber-band: build a big lead and they start playing desperate
+  const lead = G.scoreUs - G.scoreThem;
+  if (lead >= 8 && !G.rallyOn){ G.rallyOn = true; toast("THEY'RE HEATING UP", true); }
+  else if (lead < 6 && G.rallyOn) G.rallyOn = false;
+  const frozenSkip = (G.freeze>0 && G.t%3!==0) || (G.distract>0 && G.t%4!==0); // frozen/distracted opponents crawl
+
+  // opponents
+  for (const o of opponents){
+    if (frozenSkip && !['flopping','crying','selfflop'].includes(o.state)) continue; // french vanilla freeze
+    o.timer++;
+    o.facing = o.vx<0?-1:(o.vx>0?1:o.facing);
+
+    if (o.state==='drive'){
+      // SGA free-throw merchant protocol: falls, whistle, automatic points. craft.
+      if (o.name==='SGA' && Math.random()<0.003){
+        o.state='ftdraw'; o.timer=0; o.expression='cry'; o.vrot=1;
+        sfx.foul(); ref.point=70;
+        G.shake = Math.max(G.shake, 7);
+        floatText(o.x, o.y-70, 'SGA HAS FALLEN. TWO SHOTS.', '#ff5470', 20);
+        continue;
+      }
+      const dx=HOOP.x+24-o.x, dy=HOOP.y-o.y, d=Math.max(1,Math.hypot(dx,dy));
+      o.vx = dx/d*o.speed*1.9; o.vy = dy/d*o.speed*1.9;
+      o.x += o.vx*slow; o.y += o.vy*slow;
+      o.legPhase += 0.3*slow; o.ballPhase += 0.32*slow;
+      // Wemby wall
+      const wd = Math.hypot(wemby.x-o.x, (wemby.y-10)-o.y);
+      if (wd < 46) bounceOff(o);
+      if (d < 52){ o.state='layup'; o.timer=0; o.ballUp=true; }
+    }
+    else if (o.state==='layup'){
+      if (o.timer===17){
+        G.scoreThem += 2;
+        sfx.swishThem();
+        floatText(HOOP.x+30, HOOP.y-70, '+2 THEM', '#ff5470', 24);
+        G.shake = Math.max(G.shake, 6);
+        if (Math.random()<0.4) postTweet({body:rnd(TW_SMUG)});
+        o.state='celebrate'; o.timer=0; o.expression='smug';
+      }
+    }
+    else if (o.state==='celebrate'){
+      o.legPhase += 0.25*slow;
+      if (o.timer>65){ o.state='exit'; }
+    }
+    else if (o.state==='exit'){
+      o.x += 3.2*slow; o.legPhase += 0.3*slow;
+      if (o.x > W+50) o.state='gone';
+    }
+    else if (o.state==='charge'){
+      const dx=wemby.x-o.x, dy=(wemby.y-10)-o.y, d=Math.max(1,Math.hypot(dx,dy));
+      o.vx = dx/d*o.speed*1.9; o.vy = dy/d*o.speed*1.9;
+      o.x += o.vx*slow; o.y += o.vy*slow;
+      o.legPhase += 0.3*slow;
+      if (d < 44){
+        // enforcers sometimes latch on instead of bouncing — hold his arms, slow him down
+        if (Math.random() < 0.5){
+          o.state='grapple'; o.timer=0; o.grabSide = o.x < wemby.x ? -1 : 1;
+          floatText(wemby.x, wemby.y-150, 'ARM HOLDING (legal apparently)', '#EF8633', 16);
+        } else bounceOff(o);
+      }
+    }
+    else if (o.state==='grapple'){
+      o.x = wemby.x + o.grabSide*34;
+      o.y = wemby.y - 4;
+      o.facing = -o.grabSide;
+      // random weapon swing — absorbed, naturally
+      if (o.timer % 75 === 50){
+        o.weaponT = 22;
+        G.absorbed++;
+        G.ult = Math.min(100, G.ult+5);
+        ref.shrug = 50;
+        sfx.absorb();
+        G.shake = Math.max(G.shake, 6);
+        floatText(wemby.x, wemby.y-150, rnd(['CLANG! (chair absorbed)','BONK. NOTHING.','THE CHAIR IS HURT','WEAPON CHECK: INEFFECTIVE']), '#00B2A9', 18);
+        if (Math.random()<0.25) postTweet({body:"Our guy just hit Wembanyama with a FOLDING CHAIR and the chair is now in concussion protocol. No call either way. What sport is this."});
+      }
+      if (o.weaponT>0) o.weaponT--;
+      if (o.timer > 240){ bounceOff(o); } // eventually shaken off
+    }
+    else if (o.state==='lurk'){
+      // drift toward a spot near the ref, then wind up
+      const tx = ref.x + 60, ty = ref.y + 10;
+      const dx=tx-o.x, dy=ty-o.y, d=Math.max(1,Math.hypot(dx,dy));
+      o.vx = dx/d*o.speed*1.4; o.vy = dy/d*o.speed*1.4;
+      o.x += o.vx*slow; o.y += o.vy*slow;
+      o.legPhase += 0.25*slow;
+      if (d < 40 && o.timer>40){ o.state='windup'; o.timer=0; }
+    }
+    else if (o.state==='windup'){
+      // veteran flop artists need less wind-up time in the later rounds
+      if (o.timer > Math.max(28, 56 - G.level*8)){
+        // THE PERFORMANCE
+        o.state='selfflop'; o.timer=0; o.expression='cry'; o.vrot = Math.random()<.5?-1:1;
+        const wembyNear = Math.hypot(wemby.x-o.x, wemby.y-o.y) < 160;
+        const refNear = Math.hypot(ref.x-o.x, ref.y-o.y) < 230;
+        burst(o.x, o.y-30, 12, 'tear');
+        if (G.grace>0 && wembyNear && refNear){
+          floatText(o.x, o.y-80, 'DIVINE INTERVENTION — NO FOUL 🙏', '#ffd23f', 18);
+        } else if (wembyNear && refNear){
+          G.fouls++;
+          ref.point = 80; sfx.foul();
+          G.shake = Math.max(G.shake, 10);
+          toast(`FOUL ON WEMBANYAMA (${G.fouls}/6)`, true);
+          floatText(o.x, o.y-80, 'OSCAR-WINNING DIVE', '#ff5470', 20);
+          postTweet({body:rnd(TW_FOUL)});
+          if (G.fouls>=6){ endGame('foulout'); return; }
+        } else {
+          floatText(o.x, o.y-80, wembyNear ? 'REF DIDN\'T SEE IT' : 'OVERTURNED — HE WAS 30 FEET AWAY', '#00B2A9', 18);
+          floatText(o.x, o.y-102, 'PERFORMANCE WASTED', '#9a9aa8', 14);
+          if (Math.random()<0.5) postTweet({support:true});
+        }
+      }
+    }
+    else if (o.state==='bounce'){
+      o.x+=o.vx*slow; o.y+=o.vy*slow; o.vx*=0.92; o.vy*=0.92;
+      if (o.timer>26) o.state = o.role==='scorer' ? 'drive' : (o.role==='flopper' ? 'lurk' : 'charge');
+    }
+    else if (o.state==='flopping'){
+      o.x+=o.vx*slow; o.y+=o.vy*slow;
+      o.vy+=0.35*slow; o.vx*=0.97;
+      o.rot+=o.vrot*slow;
+      if (o.cryEmit++%4===0) burst(o.x, o.y-30, 1, 'tear');
+      if (o.timer>30 && o.vy>0 && o.y>H*0.3){ o.state='crying'; o.timer=0; sfx.cry(); }
+      o.x=Math.max(20,Math.min(W-20,o.x));
+      o.y=Math.max(150,Math.min(H-10,o.y));
+    }
+    else if (o.state==='ftdraw'){
+      if (o.timer===35){
+        G.scoreThem += 2;
+        sfx.swishThem();
+        floatText(o.x, o.y-55, '+2 THEM (FREE THROWS)', '#ff5470', 20);
+        if (Math.random()<0.5) postTweet({body:"SGA just drew a shooting foul on a defender who was 14 feet away reading a book. Craft. Guile. Cinema."});
+      }
+      if (o.cryEmit++%9===0) burst(o.x+10, o.y-20, 1, 'tear');
+      if (o.timer>120) o.state='gone';
+    }
+    else if (o.state==='crying' || o.state==='selfflop'){
+      if (o.cryEmit++%7===0) burst(o.x+10, o.y-20, 1, 'tear');
+      if (o.timer>150) o.state='gone';
+    }
+  }
+  opponents = opponents.filter(o=>o.state!=='gone');
+
+  // particles
+  for (const p of particles){ p.x+=p.vx; p.y+=p.vy; p.vy+=p.g; p.life--; }
+  particles = particles.filter(p=>p.life>0);
+  for (const f of floaters){ f.y+=f.vy; f.life--; }
+  floaters = floaters.filter(f=>f.life>0);
+
+  // HUD
+  hud.tears.textContent = G.tears;
+  hud.absorbed.textContent = G.absorbed;
+  hud.combo.textContent = '×'+G.combo;
+  hud.ult.textContent = Math.floor(G.ult)+'%';
+  btnAura.classList.toggle('ready', G.ult>=100);
+  const pIcon = G.paused ? '▶' : '⏸';
+  if (btnPause.textContent !== pIcon) btnPause.textContent = pIcon;
+}
+function bounceOff(o){
+  const dx=o.x-wemby.x, dy=o.y-(wemby.y-10), d=Math.max(1,Math.hypot(dx,dy));
+  o.state='bounce'; o.timer=0;
+  o.vx = dx/d*(4.5+Math.random()*2.5);
+  o.vy = dy/d*(4.5+Math.random()*2.5);
+  // they're allowed to fuck with him a little — he budges an inch
+  wemby.x = Math.max(40, Math.min(W-40, wemby.x - dx/d*7));
+  wemby.y = Math.max(150, Math.min(H-20, wemby.y - dy/d*5));
+  G.absorbed++;
+  G.ult = Math.min(100, G.ult+3);
+  ref.shrug = 60;
+  sfx.absorb();
+  burst(wemby.x + dx*0.3, wemby.y-60, 6, 'star');
+  const ABS = ['ABSORBED','NOTHING.','HE FELT A VIBE','STRUCTURAL INTEGRITY: FINE','*GONG SOUND*','THE WALL HOLDS'];
+  floatText(wemby.x, wemby.y-130, rnd(ABS), '#00B2A9', 20);
+  G.shake = Math.max(G.shake, 5);
+  if (Math.random()<0.1) postTweet({body:rnd(TW_ABSORB)});
+}
+
+// ---------- RENDER ----------
+function render(){
+  ctx.setTransform(DPR, 0, 0, DPR, 0, 0); // draw in CSS-pixel space on the retina backing store
+  if (G.scene==='montage'){
+    ctx.save(); drawMontage(); ctx.restore();
+    return;
+  }
+  ctx.save();
+  if (G.shake>0.5) ctx.translate((Math.random()-0.5)*G.shake, (Math.random()-0.5)*G.shake);
+  drawCourt();
+  drawPowerups();
+  const drawables = [...opponents].sort((a,b)=>a.y-b.y);
+  let wembyDrawn=false, refDrawn=false;
+  for (const o of drawables){
+    if (!refDrawn && ref.y < o.y){ drawRef(); refDrawn=true; }
+    if (!wembyDrawn && wemby.y < o.y){ drawWemby(); wembyDrawn=true; }
+    drawOpponent(o);
+  }
+  if (!refDrawn) drawRef();
+  if (!wembyDrawn) drawWemby();
+  drawParticles();
+  drawFloaters();
+  if (G.freeze>0){
+    ctx.fillStyle='rgba(111,214,255,0.10)'; ctx.fillRect(0,0,W,H);
+    ctx.font='900 18px Bangers'; ctx.textAlign='left'; ctx.fillStyle='#6fd6ff';
+    ctx.fillText('❄ FRENCH VANILLA: '+Math.ceil(G.freeze/60)+'s', 14, 104);
+  }
+  if (G.swipa>0){
+    ctx.font='900 18px Bangers'; ctx.textAlign='left'; ctx.fillStyle='#6fd6ff';
+    ctx.fillText('🦊 SWIPA MODE: '+Math.ceil(G.swipa/60)+'s', 14, G.freeze>0 ? 128 : 104);
+  }
+  drawFlash();
+  if (G.scene==='play' || G.scene==='between') drawScoreboard();
+  if (G.scene==='between'){
+    ctx.fillStyle='rgba(0,0,0,0.55)'; ctx.fillRect(0,H*0.15,W,80);
+    ctx.font='900 34px Bangers, cursive'; ctx.textAlign='center';
+    ctx.lineWidth=5; ctx.strokeStyle='#000';
+    ctx.strokeText(G.transitionMsg, W/2, H*0.15+50);
+    ctx.fillStyle = G.transitionMsg.includes('SPURS WIN') ? '#00B2A9' : '#ff5470';
+    ctx.fillText(G.transitionMsg, W/2, H*0.15+50);
+  }
+  if (G.slowmo>0){
+    ctx.fillStyle='rgba(0,0,0,0.65)';
+    ctx.fillRect(0,0,W,34); ctx.fillRect(0,H-34,W,34);
+    ctx.fillStyle='#E13A8E'; ctx.font='900 20px Bangers'; ctx.textAlign='center';
+    ctx.fillText('CINEMATIC FLOP REPLAY', W/2, 24);
+  }
+  ctx.restore();
+}
+
+function loop(){
+  update();
+  render();
+  requestAnimationFrame(loop);
+}
+
+// ---------- BOOT ----------
+resize();
+HOOP.y = (H+82)/2;
+renderPips();
+// backfill the trophy case: holding a later trophy proves the earlier rounds were won
+// (covers wins recorded before the trophy case existed)
+(() => {
+  const b = getBeaten();
+  if (b.length) for (let i=0;i<Math.max(...b);i++) addBeaten(i);
+  const s = loadSave();
+  if (s && s.level>0) for (let i=0;i<s.level;i++) addBeaten(i);
+})();
+postTweet({body:"Pregame report: Wembanyama was seen ABSORBING a hug from a teammate with no visible damage. Opposing fanbases have been advised to begin crying early to beat traffic."});
+postTweet({who:INSIDER, breaking:true, body:"League sources confirm tonight's officiating crew has been instructed to 'believe every performance.' Flop artists around the league are stretching. (Woj could not be reached — he is busy running a college program and at peace.)"});
+showTitle();
+loop();
+</script>
+</body>
+</html>
