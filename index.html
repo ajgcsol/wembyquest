@@ -12,6 +12,8 @@
 <meta name="apple-mobile-web-app-status-bar-style" content="black-translucent">
 <meta name="apple-mobile-web-app-title" content="WembyQuest">
 <link rel="apple-touch-icon" href="wq-icon-180.png">
+<!-- Umami analytics — data-domains restricts tracking to production so local testing never pollutes the stats -->
+<script defer src="https://cloud.umami.is/script.js" data-website-id="33fc7e65-29e2-4df0-b203-cd569583dc66" data-domains="ajg707.github.io"></script>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
 <link href="https://fonts.googleapis.com/css2?family=Bangers&family=Barlow+Condensed:ital,wght@0,400;0,600;0,800;1,400;1,700&display=swap" rel="stylesheet">
@@ -294,6 +296,12 @@
    - Flop artists dive near the ref to draw fouls ON YOU. 6 fouls = out.
    - Best of 7 per round. Lose 4 and the crybabies advance.
    ===================================================================== */
+
+// ---------- ANALYTICS ----------
+// no-ops if umami is blocked/unloaded or we're not on the production domain
+function track(name, data){
+  try{ if (window.umami && umami.track) umami.track(name, data); }catch(e){}
+}
 
 // ---------- DOM ----------
 const canvas = document.getElementById('game');
@@ -844,6 +852,7 @@ window.addEventListener('beforeinstallprompt', e => {
 });
 window.installApp = async function(){
   ac();
+  track('install-clicked', {platform: deferredInstall ? 'android' : (IS_IOS ? 'ios' : 'other')});
   if (deferredInstall){
     deferredInstall.prompt();
     try{ await deferredInstall.userChoice; }catch(e){}
@@ -1276,6 +1285,7 @@ function startGame(){
   timers = { scorer: 60, enforcer: 150, flopper: L().flopperEvery*60*0.7, power: 3.5*60 };
   ref.persona = rnd(REFS);
   renderPips();
+  track('game-started', {opponent: L().short, game: G.gameNum, difficulty: G.difficulty, mode: G.replayMode ? 'replay' : 'campaign'});
   toast(`GAME ${G.gameNum} — REF: ${ref.persona.name}`);
 }
 function endGame(reason){
@@ -1332,6 +1342,7 @@ function afterTransition(){
 function seriesWon(){
   G.scene='series-win';
   sfx.win();
+  track('series-won', {opponent: L().short, difficulty: G.difficulty, mode: G.replayMode ? 'replay' : 'campaign'});
   // campaign wins imply every earlier round was conquered too
   if (G.replayMode) addBeaten(G.level);
   else for (let i=0;i<=G.level;i++) addBeaten(i);
@@ -1358,6 +1369,7 @@ function seriesWon(){
 function seriesLost(){
   G.scene='series-loss';
   sfx.lose();
+  track('series-lost', {opponent: L().short, difficulty: G.difficulty});
   if (!G.replayMode) saveProgress({gameNum:1, gamesWon:0, gamesLost:0}); // quitting here resumes a fresh series at this round
   const lv=L();
   postTweet({who:INSIDER, breaking:true, body:`UPSET COMPLETE: the ${lv.opp} have eliminated San Antonio ${G.gamesLost}–${G.gamesWon}. The series will be remembered for its bravery, its drama, and its 600 gallons of tears (theirs).`});
@@ -1548,6 +1560,7 @@ window.beginSeries = function(){
 };
 function showVictory(){
   G.scene='victory';
+  track('championship-won', {difficulty: G.difficulty, tears: G.tears});
   addBeaten(3);
   clearSave();
   sfx.win(); setTimeout(()=>sfx.win(),500);
@@ -2783,6 +2796,8 @@ postTweet({body:"Pregame report: Wembanyama was seen ABSORBING a hug from a team
 postTweet({who:INSIDER, breaking:true, body:"League sources confirm tonight's officiating crew has been instructed to 'believe every performance.' Flop artists around the league are stretching. (Woj could not be reached — he is busy running a college program and at peace.)"});
 showTitle();
 requestAnimationFrame(loop);
+// count home-screen-app launches (delayed: the deferred umami script loads after this inline one)
+if (IS_STANDALONE) setTimeout(() => track('launched-standalone'), 2500);
 // webfonts land after first paint — flush stale measurements and repaint
 try{ document.fonts.ready.then(() => { labelWidthCache.clear(); courtKey=''; repaint(); }); }catch(e){}
 </script>
